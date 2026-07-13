@@ -1,4 +1,4 @@
-require('dotenv').config(); // 🛠️ ATIVADO: Permite que o bot leia as variáveis de ambiente do Railway
+require('dotenv').config(); // Garante o login seguro usando as variáveis do Railway
 
 const { 
     Client, 
@@ -14,11 +14,20 @@ const {
     MessageFlags 
 } = require('discord.js');
 
+// 🔐 INTENTS: Necessários para ler as mensagens e gerenciar o servidor
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent 
+    ]
 });
 
 const botStartTime = Date.now();
+
+// ⚙️ CONFIGURAÇÃO DO CANAL DE LIMPEZA
+// Substitua os números abaixo pelo ID do canal que deve ser limpo instantaneamente
+const ID_CANAL_LIMPEZA = '123456789012345678'; 
 
 // 1. Monitoramento de Inicialização
 client.once('ready', async () => {
@@ -27,34 +36,52 @@ client.once('ready', async () => {
         await client.application.commands.set([
             {
                 name: 'painel',
-                description: 'Abre o painel de gerenciamento administrativo v2.',
+                description: 'Abre o painel administrativo moderno com contêiner e botões.',
                 defaultMemberPermissions: PermissionFlagsBits.Administrator.toString(),
                 dmPermission: false,
             }
         ]);
-        console.log('✅ [SLASH COMMANDS] Comando /painel foi sincronizado com o Discord!');
+        console.log('✅ [SLASH COMMANDS] Comando /painel sincronizado com sucesso!');
     } catch (error) {
-        console.error('❌ [ERRO] Falha crítica ao registrar o comando:', error);
+        console.error('❌ [ERRO] Falha ao registrar o comando:', error);
     }
 });
 
-// 2. Ouvinte de Interações com Try/Catch Duplo (Anti-Travamento)
+// 2. SISTEMA DE LIMPEZA AUTOMÁTICA INSTANTÂNEA
+client.on('messageCreate', async (message) => {
+    // IMPORTANTE: Ignora mensagens de outros bots e do próprio bot
+    // Isso garante que o painel enviado pelo bot NUNCA seja apagado por ele mesmo
+    if (message.author.bot) return; 
+
+    // Se a mensagem for enviada no canal configurado, ela é deletada na hora
+    if (message.channel.id === ID_CANAL_LIMPEZA) {
+        try {
+            await message.delete();
+            console.log(`🧹 [LIMPEZA] Mensagem de ${message.author.tag} deletada no exato momento do envio.`);
+        } catch (error) {
+            console.error('❌ [ERRO DE PERMISSÃO] Não consegui apagar a mensagem:', error.message);
+        }
+    }
+});
+
+// 3. SISTEMA DO PAINEL MODERNO (LAYOUT V2)
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === 'painel') {
-        console.log(`📥 [INTERAÇÃO] Comando /painel acionado por ${interaction.user.tag} no servidor ${interaction.guild?.name}`);
+        console.log(`📥 [INTERAÇÃO] Comando /painel acionado por ${interaction.user.tag}`);
         
         try {
-            // VERIFICAÇÃO DE VERSÃO: Impede o crash silencioso caso o discord.js esteja desatualizado
             if (typeof ContainerBuilder === 'undefined') {
-                throw new Error("Sua biblioteca 'discord.js' está desatualizada e não conhece o 'ContainerBuilder' (Components V2). Atualize executando: npm i discord.js@latest");
+                throw new Error("O seu discord.js precisa estar na versão mais recente para usar ContainerBuilder.");
             }
 
+            // Gerando o layout completo com contêiner, textos e botões
             const painelCompleto = gerarPainelLayoutV2(interaction.guild);
 
-            // Resolução de flags por Bitfield numérico (Evita quebras em versões antigas do NodeJS/Discord.js)
-            const flagEphemeral = MessageFlags?.Ephemeral ?? 64;
+            // Flags para ativar o visual moderno V2 do Discord
+            // Nota: Se quiser que TODOS vejam o painel no canal, mude para: const flagEphemeral = 0;
+            const flagEphemeral = MessageFlags?.Ephemeral ?? 64; 
             const flagComponentsV2 = MessageFlags?.IsComponentsV2 ?? 32768;
 
             await interaction.reply({ 
@@ -62,47 +89,48 @@ client.on('interactionCreate', async (interaction) => {
                 flags: [flagEphemeral, flagComponentsV2]
             });
             
-            console.log('✅ [SUCESSO] Painel de Administração V2 enviado para o Discord.');
+            console.log('✅ [SUCESSO] Painel V2 enviado com todos os componentes.');
 
         } catch (error) {
-            console.error('\n❌ [ERRO CAPTURADO NO COMANDO /PAINEL]:');
-            console.error(error.stack || error);
+            console.error('\n❌ [ERRO NO COMANDO]:', error.stack || error);
             
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ 
-                        content: `⚠️ **Ocorreu um erro interno ao executar o comando!**\n\n**Detalhes técnicos:**\n\`\`\`x86asm\n${error.message}\n\`\`\`\n*Verifique o console do terminal do seu bot para corrigir.*`, 
-                        ephemeral: true
-                    });
-                    console.log('⚠️ [AVISO] O bot enviou uma mensagem de erro segura para o usuário no Discord.');
-                }
-            } catch (replyError) {
-                console.error('❌ [ERRO EM CASCATA] Nem mesmo a mensagem de erro pôde ser enviada:', replyError);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ 
+                    content: `⚠️ Ocorreu um erro ao carregar o painel V2: \`${error.message}\``, 
+                    ephemeral: true
+                });
             }
         }
     }
 });
 
+// FUNÇÃO QUE MONTA O DESIGN DO CONTÊINER E DOS BOTÕES
 function gerarPainelLayoutV2(guild) {
     const totalUptimeSeconds = Math.floor((Date.now() - botStartTime) / 1000);
     const horas = Math.floor(totalUptimeSeconds / 3600);
     const minutos = Math.floor((totalUptimeSeconds % 3600) / 60);
 
+    // Criando o Bloco de Contêiner Principal
     const containerPainel = new ContainerBuilder()
-        .setAccentColor(0x2b2d31); 
+        .setAccentColor(0x2b2d31); // Cor escura oficial do Discord
 
+    // Título Grande (Header) usando a formatação Markdown nova
     const txtTitulo = new TextDisplayBuilder()
         .setContent('# SISTEMA DE GERENCIAMENTO E CONTROLE\n**Painel de Administração V2**');
 
+    // Linha de Divisão Visual (Separator)
     const divisor = new SeparatorBuilder();
 
+    // Informações de Status de dentro do bloco
     const txtStatus = new TextDisplayBuilder()
         .setContent(`⚙️ **Status do Sistema**\n• Servidor: \`${guild?.name || 'Desconhecido'}\`\n• Uptime: \`${horas}h ${minutos}m\`\n• Latência: \`${client.ws.ping ?? 0}ms\``);
 
+    // Juntando os textos e o divisor dentro do contêiner
     containerPainel.addTextDisplayComponents(txtTitulo)
                    .addSeparatorComponents(divisor)
                    .addTextDisplayComponents(txtStatus);
 
+    // Criando o Menu de Seleção (Dropdown)
     const menuSelecao = new StringSelectMenuBuilder()
         .setCustomId('painel_selecao')
         .setPlaceholder('Selecione uma opção de gerenciamento...')
@@ -112,17 +140,19 @@ function gerarPainelLayoutV2(guild) {
             { label: 'Sistemas Globais', description: 'Alterar status de módulos automáticos.', value: 'sistemas_globais', emoji: '🌐' }
         ]);
 
+    // Criando a fileira de botões modernos
     const btnRecarregar = new ButtonBuilder().setCustomId('btn_recarregar').setLabel('Recarregar').setStyle(ButtonStyle.Primary).setEmoji('🔄');
     const btnLogs = new ButtonBuilder().setCustomId('btn_logs').setLabel('Ver Logs').setStyle(ButtonStyle.Secondary).setEmoji('📋');
     const btnSuporte = new ButtonBuilder().setCustomId('btn_suporte').setLabel('Suporte').setStyle(ButtonStyle.Danger).setEmoji('🛠️');
 
+    // Organizando os componentes em linhas de ação
     const rowMenu = new ActionRowBuilder().addComponents(menuSelecao);
     const rowBotoes = new ActionRowBuilder().addComponents(btnRecarregar, btnLogs, btnSuporte);
 
+    // Inserindo o Menu e os Botões dentro do rodapé do Contêiner V2
     containerPainel.addActionRowComponents(rowMenu, rowBotoes);
 
     return containerPainel;
 }
 
-// 🔒 SEGURO: O Railway vai injetar o token aqui automaticamente sem expor no GitHub
 client.login(process.env.TOKEN);
