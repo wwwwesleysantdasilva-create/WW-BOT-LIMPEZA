@@ -9,12 +9,12 @@ const {
     TextInputStyle,
     PermissionFlagsBits,
     StringSelectMenuBuilder,
-    ChannelSelectMenuBuilder, // Adicionado para seleção nativa de canais
+    ChannelSelectMenuBuilder,
     ComponentType,
-    // Importações exclusivas do ecossistema Discord Components V2 (IS_COMPONENTS_V2)
     ContainerBuilder, 
     TextDisplayBuilder, 
-    SeparatorBuilder 
+    SeparatorBuilder,
+    MessageFlags // Importado para ativar a interface moderna v2
 } = require('discord.js');
 require('dotenv').config();
 
@@ -32,40 +32,84 @@ let canalLimpezaId = process.env.CANAL_ID;
 
 let mensagensApagadasTotal = 0;
 const botStartTime = Date.now();
-
-// Armazenamento temporário de sessões para guardar qual canal o admin selecionou antes de abrir o formulário
 const sessoesAdmin = new Map();
 
 // =========================================================================
-// FUNÇÃO AUXILIAR: GERADOR DO PAINEL USANDO EXCLUSIVAMENTE COMPONENTS V2
+// CONFIGURAÇÃO DE EMOJIS CUSTOMIZADOS BRANCOS (VIA ID)
+// IMPORTANTE: Faça o upload de emojis brancos no seu servidor do Discord,
+// pegue o ID deles (digitando \:nome_do_emoji: no chat) e mude os números abaixo!
+// =========================================================================
+const EMOJIS = {
+    broom: '<:white_broom:123456789012345601>',
+    chart: '<:white_chart:123456789012345602>',
+    users: '<:white_users:123456789012345603>',
+    ping: '<:white_ping:123456789012345604>',
+    clock: '<:white_clock:123456789012345605>',
+    gear: '<:white_gear:123456789012345606>',
+    restart: '<:white_restart:123456789012345607>',
+    check: '<:white_check:123456789012345608>',
+    cross: '<:white_cross:123456789012345609>'
+};
+
+// =========================================================================
+// GERADOR DO PAINEL COMPLETO (ESTRUTURA COMPONENTES V2 CORRIGIDA)
 // =========================================================================
 function gerarPainelLayoutV2(guild) {
     const totalUptimeSeconds = Math.floor((Date.now() - botStartTime) / 1000);
     const horas = Math.floor(totalUptimeSeconds / 3600);
     const minutos = Math.floor((totalUptimeSeconds % 3600) / 60);
 
-    // Substituído o EmbedBuilder por um ContainerBuilder moderno da V2
     const containerPainel = new ContainerBuilder()
         .setTitle('SISTEMA DE GERENCIAMENTO E CONTROLE')
-        .setColor('#2b2d31'); // Cor escura nativa da interface do Discord
+        .setAccentColor(0x2b2d31); // Corrigido: setAccentColor aceita valor numérico/hex
 
-    // Adicionando os elementos de texto e separadores internos do container
-    containerPainel.addComponents(
-        new TextDisplayBuilder().setText('Gerencie as funções de envio do bot e acompanhe as estatísticas do sistema em tempo real através das opções abaixo.'),
-        new SeparatorBuilder(),
-        new TextDisplayBuilder().setText(`🧹 Canal de Limpeza Ativo: ${canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*'}`),
-        new TextDisplayBuilder().setText(`📊 Total de Mensagens Apagadas: \`${mensagensApagadasTotal}\` mensagens`),
-        new TextDisplayBuilder().setText(`👥 Total de Membros: \`${guild.memberCount}\` usuários`),
-        new TextDisplayBuilder().setText(`⚡ Latência (Ping): \`${client.ws.ping || 0}ms\``),
-        new TextDisplayBuilder().setText(`⏱️ Tempo Online: \`${horas}h ${minutos}m\``)
+    // Corrigido: .addTextDisplayComponents e .setContent()
+    containerPainel.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent('Gerencie as funções de envio do bot e acompanhe as estatísticas do sistema em tempo real através das opções abaixo.')
     );
+    
+    // Corrigido: Método próprio para separadores
+    containerPainel.addSeparatorComponents(new SeparatorBuilder());
+    
+    containerPainel.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`${EMOJIS.broom} Canal de Limpeza Ativo: ${canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*'}`),
+        new TextDisplayBuilder().setContent(`${EMOJIS.chart} Total de Mensagens Apagadas: \`${mensagensApagadasTotal}\` mensagens`),
+        new TextDisplayBuilder().setContent(`${EMOJIS.users} Total de Membros: \`${guild.memberCount}\` usuários`),
+        new TextDisplayBuilder().setContent(`${EMOJIS.ping} Latência (Ping): \`${client.ws.ping || 0}ms\``),
+        new TextDisplayBuilder().setContent(`${EMOJIS.clock} Tempo Online: \`${horas}h ${minutos}m\``)
+    );
+
+    // Menus e botões construídos normalmente
+    const menuSelecao = new StringSelectMenuBuilder()
+        .setCustomId('menu_painel_opcoes')
+        .setPlaceholder('Selecione uma ação administrativa...')
+        .addOptions([
+            { label: 'Enviar Mensagem', description: 'Enviar anúncio estruturado com botão de link.', value: 'op_enviar_mensagem' },
+            { label: 'Alterar Canal de Limpeza', description: 'Mudar o canal monitorado pelo sistema de limpeza.', value: 'op_config_limpeza' }
+        ]);
+
+    const botaoAtualizar = new ButtonBuilder()
+        .setCustomId('btn_atualizar_painel')
+        .setLabel('Atualizar Estatísticas')
+        .setStyle(ButtonStyle.Secondary);
+
+    // NOVO: Botão de Reinicialização de segurança contra travamentos
+    const botaoReiniciar = new ButtonBuilder()
+        .setCustomId('btn_reiniciar_bot')
+        .setLabel('Reiniciar Aplicação')
+        .setStyle(ButtonStyle.Danger);
+
+    const rowMenu = new ActionRowBuilder().addComponents(menuSelecao);
+    const rowBotoes = new ActionRowBuilder().addComponents(botaoAtualizar, botaoReiniciar);
+
+    // Corrigido: Anexa os menus e botões DENTRO do bloco do container principal
+    containerPainel.addActionRowComponents(rowMenu, rowBotoes);
 
     return containerPainel;
 }
 
 client.once('ready', async () => {
-    console.log(`✅ Bot de limpeza e Components V2 ativo como ${client.user.tag}`);
-
+    console.log(`✅ Bot ativo como ${client.user.tag}`);
     try {
         await client.application.commands.set([
             {
@@ -76,12 +120,12 @@ client.once('ready', async () => {
         ]);
         console.log('✅ Comando /painel registrado com sucesso!');
     } catch (error) {
-        console.error('Erro ao registrar comando de barra:', error);
+        console.error('Erro ao registrar comando:', error);
     }
 });
 
 // =========================================================================
-// 1. MONITORAMENTO DE LIMPEZA
+// MONITORAMENTO DE LIMPEZA
 // =========================================================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -101,62 +145,91 @@ client.on('messageCreate', async (message) => {
 });
 
 // =========================================================================
-// 2. PROCESSAMENTO DE INTERAÇÕES MODERNAS (V2)
+// PROCESSAMENTO DE INTERAÇÕES MODERNAS (V2)
 // =========================================================================
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-        return interaction.reply({ content: '❌ Apenas administradores podem utilizar este painel.', ephemeral: true });
+    if (interaction.isChatInputCommand() || interaction.isButton() || interaction.isStringSelectMenu() || interaction.isChannelSelectMenu() || interaction.isModalSubmit()) {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({ content: `${EMOJIS.cross} Apenas administradores podem utilizar este painel.`, flags: [MessageFlags.Ephemeral] });
+        }
     }
 
     // --- DISPARO DO COMANDO /PAINEL ---
     if (interaction.isChatInputCommand() && interaction.commandName === 'painel') {
-        const painelComponente = gerarPainelLayoutV2(interaction.guild);
+        const painelCompleto = gerarPainelLayoutV2(interaction.guild);
 
-        // Menu de seleção de ações principais
-        const menuSelecao = new StringSelectMenuBuilder()
-            .setCustomId('menu_painel_opcoes')
-            .setPlaceholder('Selecione uma ação administrativa...')
-            .addOptions([
-                { label: 'Enviar Mensagem', description: 'Enviar anúncio estruturado com botão de link.', value: 'op_enviar_mensagem' },
-                { label: 'Alterar Canal de Limpeza', description: 'Mudar o canal monitorado pelo sistema de limpeza.', value: 'op_config_limpeza' }
-            ]);
+        // CORREÇÃO CHAVE: Incluindo MessageFlags.IsComponentsV2 e MessageFlags.Ephemeral juntas no array de flags
+        await interaction.reply({ 
+            components: [painelCompleto], 
+            flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2] 
+        });
+    }
 
-        // Botão conforme suas regras: Cor cinza (Secondary) e sem emojis
-        const botaoAtualizar = new ButtonBuilder()
-            .setCustomId('btn_atualizar_painel')
-            .setLabel('Atualizar Estatísticas')
-            .setStyle(ButtonStyle.Secondary);
+    // --- CLIQUE NO BOTÃO DE ATUALIZAR ---
+    if (interaction.isButton() && interaction.customId === 'btn_atualizar_painel') {
+        const painelAtualizado = gerarPainelLayoutV2(interaction.guild);
+        await interaction.update({ 
+            components: [painelAtualizado],
+            flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2]
+        });
+    }
 
-        const rowMenu = new ActionRowBuilder().addComponents(menuSelecao);
-        const rowBotao = new ActionRowBuilder().addComponents(botaoAtualizar);
+    // --- INTERAÇÃO DO BOTÃO REINICIAR ---
+    if (interaction.isButton() && interaction.customId === 'btn_reiniciar_bot') {
+        const containerRestart = new ContainerBuilder()
+            .setTitle('Reiniciando Aplicação')
+            .setAccentColor(0xff0000)
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`${EMOJIS.restart} A aplicação está sendo reiniciada de forma limpa para prevenir instabilidades e limpar cache de memória...`)
+            );
 
-        await interaction.reply({ components: [painelComponente, rowMenu, rowBotao] });
+        await interaction.update({ 
+            components: [containerRestart], 
+            flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2] 
+        });
+
+        console.log('🔄 Reinicialização forçada do bot iniciada via Painel Administrativo.');
+        
+        // Pequeno delay para garantir que o Discord processe a mensagem visual antes de derrubar o Node
+        setTimeout(() => {
+            process.exit(0);
+        }, 1500);
     }
 
     // --- CAPTURA DO MENU DE SELEÇÃO PRINCIPAL ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'menu_painel_opcoes') {
         const acao = interaction.values[0];
 
-        // Se escolheu enviar mensagem, exibe o menu de seleção de CANAL ao invés de pedir ID digitado
         if (acao === 'op_enviar_mensagem') {
             const selectCanal = new ChannelSelectMenuBuilder()
                 .setCustomId('select_canal_destino')
                 .setPlaceholder('Selecione o canal que vai receber o anúncio...')
-                .setChannelTypes([ComponentType.GuildText]); // Filtra apenas para canais de texto
+                .setChannelTypes([ComponentType.GuildText]);
 
-            const row = new ActionRowBuilder().addComponents(selectCanal);
-            await interaction.reply({ content: 'Selecione abaixo o canal de destino:', components: [row], ephemeral: true });
+            const containerSelect = new ContainerBuilder()
+                .setTitle('Selecionar Destino')
+                .setAccentColor(0x2b2d31)
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${EMOJIS.gear} Selecione abaixo o canal de destino para o anúncio:`));
+            
+            containerSelect.addActionRowComponents(new ActionRowBuilder().addComponents(selectCanal));
+
+            await interaction.reply({ components: [containerSelect], flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2] });
         }
 
-        // Se escolheu alterar a limpeza, também exibe o menu de seleção de canais nativo
         if (acao === 'op_config_limpeza') {
             const selectCanalLimpeza = new ChannelSelectMenuBuilder()
                 .setCustomId('select_canal_limpeza')
                 .setPlaceholder('Selecione o novo canal a ser limpo...')
                 .setChannelTypes([ComponentType.GuildText]);
 
-            const row = new ActionRowBuilder().addComponents(selectCanalLimpeza);
-            await interaction.reply({ content: 'Selecione o novo canal para o monitoramento de limpeza:', components: [row], ephemeral: true });
+            const containerLimpeza = new ContainerBuilder()
+                .setTitle('Configurar Limpeza')
+                .setAccentColor(0x2b2d31)
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${EMOJIS.broom} Selecione o novo canal para o monitoramento de limpeza automática:`));
+
+            containerLimpeza.addActionRowComponents(new ActionRowBuilder().addComponents(selectCanalLimpeza));
+
+            await interaction.reply({ components: [containerLimpeza], flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2] });
         }
     }
 
@@ -164,12 +237,9 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isChannelSelectMenu()) {
         const canalSelecionadoId = interaction.values[0];
 
-        // Resposta da seleção do canal de destino da mensagem
         if (interaction.customId === 'select_canal_destino') {
-            // Salva o canal escolhido na sessão do usuário atual
             sessoesAdmin.set(interaction.user.id, { canalDestinoId: canalSelecionadoId });
 
-            // Abre o formulário para coletar os textos do anúncio
             const modal = new ModalBuilder().setCustomId('modal_dados_mensagem').setTitle('Conteúdo do Anúncio');
             modal.addComponents(
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('m_titulo').setLabel('Título da Mensagem').setStyle(TextInputStyle.Short).setPlaceholder('Ex: Atendimento Complexo').setRequired(true)),
@@ -180,23 +250,16 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.showModal(modal);
         }
 
-        // Resposta da seleção do canal de limpeza
         if (interaction.customId === 'select_canal_limpeza') {
             canalLimpezaId = canalSelecionadoId;
             
             const containerSucesso = new ContainerBuilder()
                 .setTitle('Configuração Atualizada')
-                .setColor('#2b2d31')
-                .addComponents(new TextDisplayBuilder().setText(`O canal de monitoramento foi reconfigurado com sucesso para: <#${canalLimpezaId}>`));
+                .setAccentColor(0x2b2d31)
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent(`${EMOJIS.check} O canal de monitoramento foi reconfigurado com sucesso para: <#${canalLimpezaId}>`));
 
-            await interaction.reply({ components: [containerSucesso], ephemeral: true });
+            await interaction.update({ components: [containerSucesso], flags: [MessageFlags.Ephemeral, MessageFlags.IsComponentsV2] });
         }
-    }
-
-    // --- CAPTURA DO CLIQUE NO BOTÃO CINZA (ATUALIZAR) ---
-    if (interaction.isButton() && interaction.customId === 'btn_atualizar_painel') {
-        const painelAtualizado = gerarPainelLayoutV2(interaction.guild);
-        await interaction.update({ components: [painelAtualizado, interaction.message.components[1], interaction.message.components[2]] });
     }
 
     // --- PROCESSAMENTO DO FORMULÁRIO ENVIADO ---
@@ -206,41 +269,37 @@ client.on('interactionCreate', async (interaction) => {
         const btnTexto = interaction.fields.getTextInputValue('m_btn_texto');
         const btnUrl = interaction.fields.getTextInputValue('m_btn_url');
 
-        // Puxa o ID do canal que guardamos na sessão anteriormente
         const dadosSessao = sessoesAdmin.get(interaction.user.id);
         if (!dadosSessao || !dadosSessao.canalDestinoId) {
-            return interaction.reply({ content: '❌ Sessão expirada. Por favor, tente selecionar o canal novamente.', ephemeral: true });
+            return interaction.reply({ content: `${EMOJIS.cross} Sessão expirada. Por favor, tente selecionar o canal novamente.`, flags: [MessageFlags.Ephemeral] });
         }
 
         try {
             const canalAlvo = await client.channels.fetch(dadosSessao.canalDestinoId);
             
-            // CONSTRUÇÃO EXCLUSIVA VIA COMPONENTS V2 (Sem Embeds Clássicos)
-            // Os botões agora fazem parte integrante e direta da árvore do container
             const containerMensagem = new ContainerBuilder()
                 .setTitle(titulo)
-                .setColor('#2b2d31');
+                .setAccentColor(0x2b2d31)
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent(texto));
 
-            containerMensagem.addComponents(
-                new TextDisplayBuilder().setText(texto),
-                new SeparatorBuilder(),
-                // O botão de link é inserido DIRETAMENTE no layout do container moderno
-                new ButtonBuilder()
-                    .setLabel(btnTexto)
-                    .setStyle(ButtonStyle.Link)
-                    .setURL(btnUrl)
-            );
-
-            // Envia o container V2 diretamente para o canal alvo
-            await canalAlvo.send({ components: [containerMensagem] });
+            containerMensagem.addSeparatorComponents(new SeparatorBuilder());
             
-            // Limpa a sessão da memória
+            const linkButton = new ButtonBuilder()
+                .setLabel(btnTexto)
+                .setStyle(ButtonStyle.Link)
+                .setURL(btnUrl);
+
+            containerMensagem.addActionRowComponents(new ActionRowBuilder().addComponents(linkButton));
+
+            // Envia a mensagem pública final utilizando corretamente a interface moderna V2
+            await canalAlvo.send({ components: [containerMensagem], flags: [MessageFlags.IsComponentsV2] });
+            
             sessoesAdmin.delete(interaction.user.id);
 
-            await interaction.reply({ content: `✅ Mensagem enviada com sucesso utilizando a interface moderna em <#${dadosSessao.canalDestinoId}>!`, ephemeral: true });
+            await interaction.reply({ content: `${EMOJIS.check} Mensagem enviada com sucesso utilizando a interface moderna em <#${dadosSessao.canalDestinoId}>!`, flags: [MessageFlags.Ephemeral] });
         } catch (err) {
             console.error(err);
-            await interaction.reply({ content: '❌ Falha ao enviar. Verifique se o link possui http:// ou https:// e tente novamente.', ephemeral: true });
+            await interaction.reply({ content: `${EMOJIS.cross} Falha ao enviar. Verifique se o link possui http:// ou https:// e tente novamente.`, flags: [MessageFlags.Ephemeral] });
         }
     }
 });
