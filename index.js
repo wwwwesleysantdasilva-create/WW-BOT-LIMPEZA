@@ -19,7 +19,7 @@ client.once('ready', async () => {
     console.log(`✅ Bot online como: ${client.user.tag}`);
     await client.application.commands.set([{
         name: 'painel',
-        description: 'Painel administrativo v2.',
+        description: 'Painel administrativo.',
         defaultMemberPermissions: PermissionFlagsBits.Administrator.toString(),
     }]);
 });
@@ -35,11 +35,10 @@ client.on('messageCreate', async (message) => {
 
 // 2. INTERAÇÕES
 client.on('interactionCreate', async (interaction) => {
-    const flagEphemeral = MessageFlags.Ephemeral;
-    const flagComponentsV2 = MessageFlags.IsComponentsV2 || 32768;
+    const flagEphemeral = 64; // Valor fixo para evitar erro de referência
 
     if (interaction.isChatInputCommand() && interaction.commandName === 'painel') {
-        return interaction.reply({ components: [gerarPainelLayoutV2()], flags: [flagEphemeral, flagComponentsV2] });
+        return interaction.reply({ components: [gerarPainelLayoutV2()], flags: [flagEphemeral] });
     }
 
     // --- BOTÕES DO PAINEL ---
@@ -107,13 +106,14 @@ client.on('interactionCreate', async (interaction) => {
         }
         
         await canal.send(payload);
-        return interaction.update({ content: '✅ Mensagem enviada!', components: [], flags: [flagEphemeral] });
+        return interaction.update({ content: '✅ Mensagem enviada com sucesso!', components: [], flags: [flagEphemeral] });
     }
 });
 
 function gerarPainelLayoutV2() {
     const container = new ContainerBuilder().setAccentColor(0x2b2d31);
-    container.addImageDisplayComponents({ url: 'https://cdn.discordapp.com/attachments/1497746808292511835/1526312049997779144/3E253502-A13F-4441-8D2E-E10F8B291422.jpg' });
+    // Exibindo a imagem como texto para garantir que o Discord renderize
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('https://cdn.discordapp.com/attachments/1497746808292511835/1526312049997779144/3E253502-A13F-4441-8D2E-E10F8B291422.jpg'));
     
     const btnLimpeza = new ButtonBuilder().setCustomId('btn_limpeza').setLabel('Limpeza').setStyle(ButtonStyle.Secondary).setEmoji('1478553904848306257');
     const btnEnviar = new ButtonBuilder().setCustomId('btn_enviar').setLabel('Enviar Mensagem').setStyle(ButtonStyle.Primary).setEmoji('📥');
