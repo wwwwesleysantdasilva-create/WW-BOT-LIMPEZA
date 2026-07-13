@@ -1,3 +1,5 @@
+require('dotenv').config(); // 🛠️ ATIVADO: Permite que o bot leia as variáveis de ambiente do Railway
+
 const { 
     Client, 
     GatewayIntentBits, 
@@ -9,7 +11,7 @@ const {
     ContainerBuilder, 
     TextDisplayBuilder, 
     SeparatorBuilder,
-    MessageFlags // Importado para garantir compatibilidade segura de flags
+    MessageFlags 
 } = require('discord.js');
 
 const client = new Client({
@@ -64,9 +66,8 @@ client.on('interactionCreate', async (interaction) => {
 
         } catch (error) {
             console.error('\n❌ [ERRO CAPTURADO NO COMANDO /PAINEL]:');
-            console.error(error.stack || error); // Exibe detalhadamente a linha onde o erro ocorreu
+            console.error(error.stack || error);
             
-            // CATCH INTERNO: Força o envio de uma mensagem para o Discord para EVITAR o "Aplicativo não respondeu"
             try {
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({ 
@@ -123,5 +124,5 @@ function gerarPainelLayoutV2(guild) {
     return containerPainel;
 }
 
-// ⚠️ ATENÇÃO: COLOQUE SEU TOKEN ABAIXO DE VERDADE ⚠️
-client.login('SEU_TOKEN_AQUI'); 
+// 🔒 SEGURO: O Railway vai injetar o token aqui automaticamente sem expor no GitHub
+client.login(process.env.TOKEN);
