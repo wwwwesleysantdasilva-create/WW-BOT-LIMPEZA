@@ -10,7 +10,6 @@ const {
     TextInputStyle,
     PermissionFlagsBits,
     StringSelectMenuBuilder,
-    // 🛠️ IMPORTS ADICIONADOS PARA COMPONENTES V2 (CONTÊINER)
     ContainerBuilder,
     TextDisplayBuilder,
     SeparatorBuilder,
@@ -27,39 +26,34 @@ const client = new Client({
     ],
 });
 
-const TOKEN = process.env.DISCORD_TOKEN;
+// 🛠️ CORREÇÃO: Puxando o nome exato da variável configurada no Railway
+const TOKEN = process.env.TOKEN; 
 let canalLimpezaId = process.env.CANAL_ID;
 
 let mensagensApagadasTotal = 0;
 const botStartTime = Date.now();
 
-// 💡 FUNÇÃO ADAPTADA: Transforma o antigo Embed no novo formato de Contêiner V2
+// Função que gera o design do Contêiner V2
 function gerarPainelLayoutV2(guild) {
     const totalUptimeSeconds = Math.floor((Date.now() - botStartTime) / 1000);
     const horas = Math.floor(totalUptimeSeconds / 3600);
     const minutos = Math.floor((totalUptimeSeconds % 3600) / 60);
 
-    // Bloco de Contêiner Principal
     const containerPainel = new ContainerBuilder()
-        .setAccentColor(0x2b2d31); // Cor oficial escura do Discord
+        .setAccentColor(0x2b2d31); 
 
-    // Título e Descrição dentro do Contêiner
     const txtTitulo = new TextDisplayBuilder()
-        .setContent('# ⚙️ SISTEMA DE GERENCIAMENTO E CONTROLE\nGerencie as funções de envio do bot e acompanhe as estatísticas do sistema em tempo real através das opções abaixo.');
+        .setContent('# ⚙️ SISTEMA DE GERENCIAMENTO E CONTROLE\nGerencie as funções de envio do bot e acompanhe as estatísticas em tempo real.');
 
-    // Linha Divisória Visual
     const divisor = new SeparatorBuilder();
 
-    // Bloco de Estatísticas e Informações formatadas
     const txtStatus = new TextDisplayBuilder()
-        .setContent(`🧹 **Canal de Limpeza Ativo:** ${canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*'}\n📊 **Total de Mensagens Apagadas:** \`${mensagensApagadasTotal}\` mensagens\n👥 **Total de Membros:** \`${guild.memberCount}\` usuários\n⚡ **Latência (Ping):** \`${client.ws.ping || 0}ms\`\n⏱️ **Tempo Online:** \`${horas}h ${minutos}m\``);
+        .setContent(`🧹 **Canal de Limpeza:** ${canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*'}\n📊 **Mensagens Apagadas:** \`${mensagensApagadasTotal}\`\n👥 **Total de Membros:** \`${guild.memberCount}\`\n⚡ **Latência:** \`${client.ws.ping || 0}ms\`\n⏱️ **Uptime:** \`${horas}h ${minutos}m\``);
 
-    // Injeta os blocos de texto e divisores no topo do Contêiner
     containerPainel.addTextDisplayComponents(txtTitulo)
                    .addSeparatorComponents(divisor)
                    .addTextDisplayComponents(txtStatus);
 
-    // Menu de Seleção Administrativo
     const menuSelecao = new StringSelectMenuBuilder()
         .setCustomId('menu_painel_opcoes')
         .setPlaceholder('Selecione uma ação administrativa...')
@@ -76,7 +70,6 @@ function gerarPainelLayoutV2(guild) {
             }
         ]);
 
-    // Botão de Atualizar as Estatísticas
     const botaoAtualizar = new ButtonBuilder()
         .setCustomId('btn_atualizar_painel')
         .setLabel('Atualizar Estatísticas')
@@ -85,7 +78,6 @@ function gerarPainelLayoutV2(guild) {
     const rowMenu = new ActionRowBuilder().addComponents(menuSelecao);
     const rowBotao = new ActionRowBuilder().addComponents(botaoAtualizar);
 
-    // Injeta os componentes interativos no rodapé do Contêiner
     containerPainel.addActionRowComponents(rowMenu, rowBotao);
 
     return containerPainel;
@@ -134,12 +126,10 @@ client.on('messageCreate', async (message) => {
 // 2. TRATAMENTO GERAL DE INTERAÇÕES
 // =========================================================================
 client.on('interactionCreate', async (interaction) => {
-    // Segurança: Bloqueia interações de quem não for Administrador
     if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.reply({ content: '❌ Apenas administradores podem interagir com este sistema.', ephemeral: true });
     }
 
-    // Definição das Flags necessárias para renderizar componentes V2 na interface do Discord
     const flagEphemeral = MessageFlags?.Ephemeral ?? 64;
     const flagComponentsV2 = MessageFlags?.IsComponentsV2 ?? 32768;
 
@@ -148,7 +138,6 @@ client.on('interactionCreate', async (interaction) => {
         if (interaction.commandName === 'painel') {
             const painelCompleto = gerarPainelLayoutV2(interaction.guild);
 
-            // Responde utilizando o contêiner injetado na array de componentes e aplicando as flags V2
             await interaction.reply({ 
                 components: [painelCompleto], 
                 flags: [flagEphemeral, flagComponentsV2] 
@@ -188,7 +177,6 @@ client.on('interactionCreate', async (interaction) => {
         if (interaction.customId === 'btn_atualizar_painel') {
             const painelEditado = gerarPainelLayoutV2(interaction.guild);
             
-            // Atualiza o contêiner mantendo a renderização V2 ativa
             await interaction.update({ 
                 components: [painelEditado], 
                 flags: [flagEphemeral, flagComponentsV2] 
