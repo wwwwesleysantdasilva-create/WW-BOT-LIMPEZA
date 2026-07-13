@@ -7,7 +7,9 @@ const {
     ButtonStyle, 
     ModalBuilder, 
     TextInputBuilder, 
-    TextInputStyle 
+    TextInputStyle,
+    PermissionFlagsBits,
+    StringSelectMenuBuilder
 } = require('discord.js');
 require('dotenv').config();
 
@@ -15,197 +17,162 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers // Necessário para contar os membros do servidor
+        GatewayIntentBits.MessageContent, // Mantido para o monitoramento de limpeza
+        GatewayIntentBits.GuildMembers
     ],
 });
 
 const TOKEN = process.env.DISCORD_TOKEN;
 let canalLimpezaId = process.env.CANAL_ID;
 
-// Contadores em memória para preencher o painel e não deixá-lo vazio
 let mensagensApagadasTotal = 0;
 const botStartTime = Date.now();
 
-client.once('ready', () => {
+// Função auxiliar para gerar o design do painel
+function gerarEmbedPainel(guild) {
+    const totalUptimeSeconds = Math.floor((Date.now() - botStartTime) / 1000);
+    const horas = Math.floor(totalUptimeSeconds / 3600);
+    const minutos = Math.floor((totalUptimeSeconds % 3600) / 60);
+
+    return new EmbedBuilder()
+        .setTitle('⚙️ SISTEMA DE GERENCIAMENTO E CONTROLE')
+        .setDescription('Gerencie as funções de envio do bot e acompanhe as estatísticas do sistema em tempo real através das opções abaixo.')
+        .setColor('#2b2d31')
+        .addFields(
+            { name: '🧹 Canal de Limpeza Ativo:', value: canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*', inline: false },
+            { name: '📊 Total de Mensagens Apagadas:', value: `\`${mensagensApagadasTotal}\` mensagens`, inline: true },
+            { name: '👥 Total de Membros:', value: `\`${guild.memberCount}\` usuários`, inline: true },
+            { name: '⚡ Latência (Ping):', value: `\`${client.ws.ping || 0}ms\``, inline: true },
+            { name: '⏱️ Tempo Online:', value: `\`${horas}h ${minutos}m\``, inline: true }
+        )
+        .setFooter({ text: 'Painel Restrito • Desenvolvido para Administração', iconURL: client.user.displayAvatarURL() })
+        .setTimestamp();
+}
+
+client.once('ready', async () => {
     console.log(`✅ Bot de limpeza automática ativo como ${client.user.tag}`);
+
+    // REGISTRO DO COMANDO /PAINEL
+    try {
+        await client.application.commands.set([
+            {
+                name: 'painel',
+                description: 'Abre o painel de gerenciamento administrativo.',
+                defaultMemberPermissions: PermissionFlagsBits.Administrator.toString(),
+            }
+        ]);
+        console.log('✅ Comando /painel registrado globalmente com sucesso!');
+    } catch (error) {
+        console.error('Erro ao registrar comando de barra:', error);
+    }
 });
 
+// =========================================================================
+// 1. MONITORAMENTO DE LIMPEZA
+// =========================================================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+    if (!message.guild) return;
 
-    // =========================================================================
-    // 1. COMANDO DO PAINEL ADMINISTRATIVO PROFISSIONAL
-    // =========================================================================
-    if (message.content === '!painel') {
-        if (!message.member.permissions.has('Administrator')) {
-            return message.reply('❌ Você não tem permissão para usar este comando.')
-                .then(msg => setTimeout(() => msg.delete(), 5000));
-        }
-
-        // Cálculo de Uptime (Tempo online)
-        const totalUptimeSeconds = Math.floor((Date.now() - botStartTime) / 1000);
-        const horas = Math.floor(totalUptimeSeconds / 3600);
-        const minutos = Math.floor((totalUptimeSeconds % 3600) / 60);
-
-        // Criando um Embed bem preenchido para o Painel não ficar vazio
-        const embedPainel = new EmbedBuilder()
-            .setTitle('⚙️ SISTEMA DE GERENCIAMENTO E CONTROLE')
-            .setDescription('Gerencie as funções de envio do bot e acompanhe as estatísticas do sistema em tempo real através dos botões abaixo.')
-            .setColor('#2b2d31') // Cor escura padrão e elegante
-            .addFields(
-                { name: '🧹 Canal de Limpeza Ativo:', value: canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*', inline: false },
-                { name: '📊 Total de Mensagens Apagadas:', value: `\`${mensagensApagadasTotal}\` mensagens`, inline: true },
-                { name: '👥 Total de Membros:', value: `\`${message.guild.memberCount}\` usuários`, inline: true },
-                { name: '⚡ Latência (Ping):', value: `\`${client.ws.ping}ms\``, inline: true },
-                { name: '⏱️ Tempo Online:', value: `\`${horas}h ${minutos}m\``, inline: true }
-            )
-            .setFooter({ text: 'Painel Restrito • Desenvolvido para Administração', iconURL: client.user.displayAvatarURL() })
-            .setTimestamp();
-
-        // Organizando os botões em duas fileiras (Rows) para preencher o visual
-        const row1 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('btn_msg_simples')
-                .setLabel('📩 Enviar Embed Simples')
-                .setStyle(ButtonStyle.Primary),
-            new ButtonBuilder()
-                .setCustomId('btn_msg_botao')
-                .setLabel('🎛️ Enviar Embed + Botão Link')
-                .setStyle(ButtonStyle.Success)
-        );
-
-        const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('btn_config_limpeza')
-                .setLabel('🔧 Alterar Canal Limpeza')
-                .setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('btn_atualizar_painel')
-                .setLabel('🔄 Atualizar Estatísticas')
-                .setStyle(ButtonStyle.Danger)
-        );
-
-        await message.channel.send({ embeds: [embedPainel], components: [row1, row2] });
-        
-        try { await message.delete(); } catch (err) {}
-        return;
-    }
-
-    // =========================================================================
-    // 2. MONITORAMENTO DE LIMPEZA (MANTIDO EXATAMENTE COMO VOCÊ QUER)
-    // =========================================================================
     if (canalLimpezaId && message.channel.id === canalLimpezaId) {
         if (message.pinned) return;
 
         setTimeout(async () => {
             try {
                 await message.delete();
-                mensagensApagadasTotal++; // Aumenta o contador para expor no painel
+                mensagensApagadasTotal++;
                 console.log(`Mensagem de ${message.author.tag} removida automaticamente.`);
             } catch (err) {
                 console.error("Erro ao apagar mensagem individual:", err);
             }
-        }, 1000); // Mantido o seu delay de 1 segundo
+        }, 1000);
     }
 });
 
 // =========================================================================
-// 3. TRATAMENTO DE BOTÕES E FORMULÁRIOS (INTERACTIONS)
+// 2. TRATAMENTO GERAL DE INTERAÇÕES
 // =========================================================================
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton() && !interaction.isModalSubmit()) return;
-
-    // Verificação de segurança
-    if (!interaction.member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ Apenas administradores podem usar estes botões.', ephemeral: true });
+    // Segurança: Bloqueia interações de quem não for Administrador
+    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: '❌ Apenas administradores podem interagir com este sistema.', ephemeral: true });
     }
 
-    // --- AÇÃO DOS BOTÕES ---
-    if (interaction.isButton()) {
+    // --- EXECUÇÃO DO COMANDO /PAINEL ---
+    if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === 'painel') {
+            const embedPainel = gerarEmbedPainel(interaction.guild);
 
-        // Botão: Atualizar Painel (Edita a mensagem do painel com os dados novos)
-        if (interaction.customId === 'btn_atualizar_painel') {
-            const totalUptimeSeconds = Math.floor((Date.now() - botStartTime) / 1000);
-            const horas = Math.floor(totalUptimeSeconds / 3600);
-            const minutos = Math.floor((totalUptimeSeconds % 3600) / 60);
+            // Criando o Menu de Seleção simplificado apenas com as funções necessárias
+            const menuSelecao = new StringSelectMenuBuilder()
+                .setCustomId('menu_painel_opcoes')
+                .setPlaceholder('Selecione uma ação administrativa...')
+                .addOptions([
+                    {
+                        label: 'Enviar Mensagem',
+                        description: 'Envia uma mensagem contendo embed e botão de link externo.',
+                        value: 'op_enviar_mensagem',
+                    },
+                    {
+                        label: 'Alterar Canal de Limpeza',
+                        description: 'Altera dinamicamente o ID do canal que o bot limpa.',
+                        value: 'op_config_limpeza',
+                    }
+                ]);
 
-            const embedEditado = new EmbedBuilder()
-                .setTitle('⚙️ SISTEMA DE GERENCIAMENTO E CONTROLE')
-                .setDescription('Gerencie as funções de envio do bot e acompanhe as estatísticas do sistema em tempo real através dos botões abaixo.')
-                .setColor('#2b2d31')
-                .addFields(
-                    { name: '🧹 Canal de Limpeza Ativo:', value: canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*', inline: false },
-                    { name: '📊 Total de Mensagens Apagadas:', value: `\`${mensagensApagadasTotal}\` mensagens`, inline: true },
-                    { name: '👥 Total de Membros:', value: `\`${interaction.guild.memberCount}\` usuários`, inline: true },
-                    { name: '⚡ Latência (Ping):', value: `\`${client.ws.ping}ms\``, inline: true },
-                    { name: '⏱️ Tempo Online:', value: `\`${horas}h ${minutos}m\``, inline: true }
-                )
-                .setFooter({ text: 'Painel Restrito • Estatísticas Atualizadas', iconURL: client.user.displayAvatarURL() })
-                .setTimestamp();
+            // Botão cinza e sem emojis para atualizar as estatísticas do painel
+            const botaoAtualizar = new ButtonBuilder()
+                .setCustomId('btn_atualizar_painel')
+                .setLabel('Atualizar Estatísticas')
+                .setStyle(ButtonStyle.Secondary);
 
-            await interaction.update({ embeds: [embedEditado] });
-        }
+            const rowMenu = new ActionRowBuilder().addComponents(menuSelecao);
+            const rowBotao = new ActionRowBuilder().addComponents(botaoAtualizar);
 
-        // Botão: Enviar Embed Simples
-        if (interaction.customId === 'btn_msg_simples') {
-            const modal = new ModalBuilder().setCustomId('modal_msg_simples').setTitle('Enviar Embed Simples');
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s_canal').setLabel('ID do Canal').setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s_titulo').setLabel('Título do Embed').setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s_texto').setLabel('Conteúdo/Texto').setStyle(TextInputStyle.Paragraph).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('s_cor').setLabel('Cor em Hex (Ex: #00ff00)').setStyle(TextInputStyle.Short).setValue('#2b2d31').setRequired(false))
-            );
-            await interaction.showModal(modal);
-        }
-
-        // Botão: Enviar Embed com Botão de Link (Ideal para Bio, Lojas, etc)
-        if (interaction.customId === 'btn_msg_botao') {
-            const modal = new ModalBuilder().setCustomId('modal_msg_botao').setTitle('Embed com Botão Interativo');
-
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_canal').setLabel('ID do Canal de Destino').setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_titulo').setLabel('Título do Embed').setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_texto').setLabel('Conteúdo do Embed').setStyle(TextInputStyle.Paragraph).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_btn_texto').setLabel('Texto do Botão').setStyle(TextInputStyle.Short).setPlaceholder('Ex: Clique Aqui para Comprar').setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_btn_url').setLabel('Link (URL) do Botão').setStyle(TextInputStyle.Short).setPlaceholder('https://...').setRequired(true))
-            );
-            await interaction.showModal(modal);
-        }
-
-        // Botão: Alterar Canal de Limpeza
-        if (interaction.customId === 'btn_config_limpeza') {
-            const modal = new ModalBuilder().setCustomId('modal_config_limpeza').setTitle('Configurar Canal de Limpeza');
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('novo_canal_id').setLabel('Novo ID do Canal de Limpeza').setStyle(TextInputStyle.Short).setValue(canalLimpezaId || '').setRequired(true))
-            );
-            await interaction.showModal(modal);
+            await interaction.reply({ embeds: [embedPainel], components: [rowMenu, rowBotao] });
         }
     }
 
-    // --- PROCESSAMENTO DOS FORMULÁRIOS (MODALS) ---
-    if (interaction.isModalSubmit()) {
+    // --- CAPTURA DE CLIQUES NO MENU DE SELEÇÃO ---
+    if (interaction.isStringSelectMenu()) {
+        if (interaction.customId === 'menu_painel_opcoes') {
+            const opcaoSelecionada = interaction.values[0];
 
-        // Resposta: Embed Simples
-        if (interaction.customId === 'modal_msg_simples') {
-            const canalId = interaction.fields.getTextInputValue('s_canal');
-            const titulo = interaction.fields.getTextInputValue('s_titulo');
-            const texto = interaction.fields.getTextInputValue('s_texto');
-            let cor = interaction.fields.getTextInputValue('s_cor') || '#2b2d31';
+            // Abre o formulário focado exclusivamente na estrutura de Embed + Botão Componente
+            if (opcaoSelecionada === 'op_enviar_mensagem') {
+                const modal = new ModalBuilder().setCustomId('modal_msg_botao').setTitle('Enviar Mensagem com Botão');
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_canal').setLabel('ID do Canal de Destino').setStyle(TextInputStyle.Short).setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_titulo').setLabel('Título do Embed').setStyle(TextInputStyle.Short).setPlaceholder('Ex: Atendimento Complexo').setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_texto').setLabel('Conteúdo do Embed').setStyle(TextInputStyle.Paragraph).setPlaceholder('Dica: Use <#ID> para marcar canais em azul').setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_btn_texto').setLabel('Texto do Botão').setStyle(TextInputStyle.Short).setPlaceholder('Ex: FAQ').setRequired(true)),
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('b_btn_url').setLabel('Link (URL) do Botão').setStyle(TextInputStyle.Short).setPlaceholder('https://...').setRequired(true))
+                );
+                await interaction.showModal(modal);
+            }
 
-            try {
-                const canal = await client.channels.fetch(canalId);
-                const embed = new EmbedBuilder().setTitle(titulo).setDescription(texto).setColor(cor.startsWith('#') ? cor : `#${cor}`).setTimestamp();
-                
-                await canal.send({ embeds: [embed] });
-                await interaction.reply({ content: `✅ Embed simples enviado com sucesso em <#${canalId}>!`, ephemeral: true });
-            } catch (err) {
-                await interaction.reply({ content: '❌ Erro ao enviar. Verifique se o ID do canal ou a cor em Hex estão corretos.', ephemeral: true });
+            if (opcaoSelecionada === 'op_config_limpeza') {
+                const modal = new ModalBuilder().setCustomId('modal_config_limpeza').setTitle('Configurar Canal de Limpeza');
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('novo_canal_id').setLabel('Novo ID do Canal de Limpeza').setStyle(TextInputStyle.Short).setValue(canalLimpezaId || '').setRequired(true))
+                );
+                await interaction.showModal(modal);
             }
         }
+    }
 
-        // Resposta: Embed com Botão Integrado (V2 Components)
+    // --- CAPTURA DE CLIQUES NO BOTAO CINZA ---
+    if (interaction.isButton()) {
+        if (interaction.customId === 'btn_atualizar_painel') {
+            const embedEditado = gerarEmbedPainel(interaction.guild);
+            await interaction.update({ embeds: [embedEditado] });
+        }
+    }
+
+    // --- PROCESSAMENTO DOS FORMULÁRIOS ENVIADOS ---
+    if (interaction.isModalSubmit()) {
+        
+        // Processa e envia a mensagem utilizando estritamente componentes de botão
         if (interaction.customId === 'modal_msg_botao') {
             const canalId = interaction.fields.getTextInputValue('b_canal');
             const titulo = interaction.fields.getTextInputValue('b_titulo');
@@ -219,10 +186,9 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setTitle(titulo)
                     .setDescription(texto)
-                    .setColor('#2b2d31')
-                    .setTimestamp();
+                    .setColor('#2b2d31');
 
-                // Componente V2: Criando o botão interativo de Link externo
+                // Cria o botão de redirecionamento (o Discord formata nativamente na cor cinza)
                 const rowBotao = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setLabel(btnTexto)
@@ -231,16 +197,15 @@ client.on('interactionCreate', async (interaction) => {
                 );
 
                 await canal.send({ embeds: [embed], components: [rowBotao] });
-                await interaction.reply({ content: `✅ Embed com botão enviado com sucesso em <#${canalId}>!`, ephemeral: true });
+                await interaction.reply({ content: `✅ Mensagem enviada com sucesso em <#${canalId}>!`, ephemeral: true });
             } catch (err) {
-                await interaction.reply({ content: '❌ Erro ao enviar. Certifique-se de que o Link inserido começa com `https://` ou `http://` e que o ID do canal esteja correto.', ephemeral: true });
+                await interaction.reply({ content: '❌ Erro ao enviar. Certifique-se de usar http:// ou https:// no link e que o ID do canal esteja correto.', ephemeral: true });
             }
         }
 
-        // Resposta: Alterar canal de limpeza
         if (interaction.customId === 'modal_config_limpeza') {
             canalLimpezaId = interaction.fields.getTextInputValue('novo_canal_id');
-            await interaction.reply({ content: `✅ O canal de limpeza foi reconfigurado para: <#${canalLimpezaId}>`, ephemeral: true });
+            await interaction.reply({ content: `✅ O canal de limpeza foi alterado com sucesso para: <#${canalLimpezaId}>`, ephemeral: true });
         }
     }
 });
