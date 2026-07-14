@@ -13,45 +13,37 @@ module.exports = {
         }
 
         // =========================================================================
-        // 1. CAPTURA E REDESIGN DO COMANDO SLASH (/painel)
+        // 1. CAPTURA E DESIGN DO COMANDO SLASH (/painel)
         // =========================================================================
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'painel') {
                 
-                // Criando um visual muito mais limpo e profissional
-                const embedPainel = new EmbedBuilder()
-                    .setTitle('⚡ WW BOT MOD · Central Administrativa')
-                    .setDescription('Seja bem-vindo ao painel de controle principal. Use os botões abaixo para gerenciar as funções do servidor em tempo real.')
-                    .setColor('#5865f2') // Cor oficial do Discord (Blurple) para um ar premium
-                    .addFields(
-                        { name: '🛰️ Status do Bot', value: '🟢 `Operacional`', inline: true },
-                        { name: '⚙️ Permissão', value: '🛡️ `Admin`', inline: true },
-                        { name: '🧹 Canal de Limpeza Ativo', value: client.canalLimpezaId ? `🟢 <#${client.canalLimpezaId}>` : '❌ `Nenhum configurado`', inline: false }
-                    )
-                    .setFooter({ text: `WW BOT • Soluções Avançadas`, iconURL: interaction.guild.iconURL() })
-                    .setTimestamp();
-
-                // Customizando os botões com novas cores (Styles) e emojis melhores
+                // Configuração dos botões personalizados (Cinza / Secondary) com os novos Emojis
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('btn_enviar_msg')
-                        .setLabel('Enviar Mensagem')
-                        .setEmoji('📢')
-                        .setStyle(ButtonStyle.Success), // Botão Verde (Sucesso)
+                        .setLabel('Mensagem Personalizada')
+                        .setEmoji('<:emoji_35:1526555628242472991>')
+                        .setStyle(ButtonStyle.Secondary), // Cor: Cinza
                     new ButtonBuilder()
                         .setCustomId('btn_config_limpeza')
                         .setLabel('Configurar Chat')
-                        .setEmoji('⚙️')
-                        .setStyle(ButtonStyle.Primary) // Botão Azul (Principal)
+                        .setEmoji('<a:emoji_36:1526557977710956615>')
+                        .setStyle(ButtonStyle.Secondary) // Cor: Cinza
                 );
 
-                await interaction.reply({ embeds: [embedPainel], components: [row] });
+                // Envia apenas o link da imagem (sem embed) e ativa o modo efêmero
+                await interaction.reply({ 
+                    content: 'https://i.postimg.cc/NMQktv5h/3E253502-A13F-4441-8D2E-E10F8B291422.jpg', 
+                    components: [row],
+                    ephemeral: true 
+                });
                 return;
             }
         }
 
         // =========================================================================
-        // 2. INTERAÇÕES DOS BOTÕES (Mantido IDs originais para não quebrar nada)
+        // 2. INTERAÇÕES DOS BOTÕES (Mantido o funcionamento dos Modais)
         // =========================================================================
         if (interaction.isButton()) {
             if (interaction.customId === 'btn_enviar_msg') {
