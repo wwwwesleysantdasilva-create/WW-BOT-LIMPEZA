@@ -11,7 +11,7 @@ const {
     StringSelectMenuBuilder
 } = require('discord.js');
 
-// Função de renderização do painel estilo FAQ
+// Função de renderização do painel interno do STAFF (Estilo FAQ Dropdown)
 function gerarPainelAnuncio(config) {
     const embedDesign = new EmbedBuilder()
         .setTitle('⚙️ Configuração de Anúncio')
@@ -52,12 +52,47 @@ function gerarPainelAnuncio(config) {
     return { embeds: [embedDesign], components: [rowDropdown, rowAcoes], ephemeral: true };
 }
 
+// FUNÇÃO DE RECUPERAÇÃO AUTOMÁTICA (Anti-quedas do Railway)
+function obterOuRecuperarConfig(interaction, client) {
+    client.anuncios = client.anuncios || {};
+    let config = client.anuncios[interaction.user.id];
+    
+    if (!config && interaction.message?.embeds?.[0]) {
+        const embed = interaction.message.embeds[0];
+        const canalMatch = embed.description?.match(/<#(\d+)>/);
+        
+        if (canalMatch) {
+            const campoTexto = embed.fields?.find(f => f.name && f.name.includes('📝 Conteúdo'));
+            let textoResgatado = '';
+            if (campoTexto && !campoTexto.value.includes('Nenhum texto')) {
+                textoResgatado = campoTexto.value.replace('🔹 ', '');
+                if (textoResgatado.endsWith('...')) textoResgatado = ''; 
+            }
+
+            const campoBotao = embed.fields?.find(f => f.name && f.name.includes('🔗 Botão'));
+            let botaoLabelResgatado = '';
+            if (campoBotao && !campoBotao.value.includes('Nenhum botão')) {
+                botaoLabelResgatado = campoBotao.value.replace('🟢 `', '').replace('`', '');
+            }
+
+            config = {
+                canalId: canalMatch[1],
+                texto: textoResgatado,
+                banner: embed.image?.url || 'https://i.postimg.cc/NMQktv5h/3E253502-A13F-4441-8D2E-E10F8B291422.jpg',
+                botaoLabel: botaoLabelResgatado,
+                botaoUrl: ''
+            };
+            client.anuncios[interaction.user.id] = config;
+        }
+    }
+    return config;
+}
+
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
         const client = interaction.client;
 
-        // 🛡️ CORREÇÃO CRÍTICA: Nova checagem de permissões nativa para interações v14
         if (
             interaction.isChatInputCommand() || 
             interaction.isButton() || 
@@ -71,7 +106,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 1. COMANDO /PAINEL (INTACTO)
+        // 1. COMANDO /PAINEL
         // =========================================================================
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'painel') {
@@ -84,7 +119,7 @@ module.exports = {
                     new ButtonBuilder()
                         .setCustomId('btn_config_limpeza')
                         .setLabel('Configurar Chat')
-                        .setEmoji('<a:emoji_36:1526557977710956615>')
+                        .setEmoji('<a:emoji_36:1526557977710956715>')
                         .setStyle(ButtonStyle.Secondary)
                 );
 
@@ -98,7 +133,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 2. INTERAÇÕES DOS BOTÕES (INTACTO)
+        // 2. INTERAÇÕES DOS BOTÕES (VISUALIZAR / ENVIAR COM NOVO DESIGN BLINDADO)
         // =========================================================================
         if (interaction.isButton()) {
             if (interaction.customId === 'btn_enviar_msg') {
@@ -112,15 +147,20 @@ module.exports = {
             }
 
             if (interaction.customId === 'btn_anuncio_visualizar') {
-                const config = client.anuncios?.[interaction.user.id];
-                if (!config) return interaction.reply({ content: '❌ Sessão expirada.', ephemeral: true });
+                const config = obterOuRecuperarConfig(interaction, client);
+                if (!config) return interaction.reply({ content: '❌ Sessão expirada. Use `/painel` para recomeçar.', ephemeral: true });
 
-                const payload = { content: config.texto || '👉 *Nenhum texto configurado ainda.*', embeds: [], components: [], ephemeral: true };
-                
+                // DESIGN NOVO: Cria o card invisível premium integrado
+                const embedAnuncio = new EmbedBuilder()
+                    .setColor('#2b2d31') 
+                    .setDescription(config.texto || '👉 *Nenhum texto configurado ainda.*');
+
                 if (config.banner) {
-                    const embedBanner = new EmbedBuilder().setImage(config.banner).setColor('#2b2d31');
-                    payload.embeds.push(embedBanner);
+                    embedAnuncio.setImage(config.banner);
                 }
+
+                const payload = { embeds: [embedAnuncio], components: [], ephemeral: true };
+                
                 if (config.botaoLabel && config.botaoUrl) {
                     const r = new ActionRowBuilder().addComponents(
                         new ButtonBuilder().setLabel(config.botaoLabel).setUrl(config.botaoUrl).setStyle(ButtonStyle.Link)
@@ -132,17 +172,23 @@ module.exports = {
             }
 
             if (interaction.customId === 'btn_anuncio_enviar') {
-                const config = client.anuncios?.[interaction.user.id];
+                const config = obterOuRecuperarConfig(interaction, client);
                 if (!config || !config.texto) return interaction.reply({ content: '❌ Preencha pelo menos o texto da mensagem antes de realizar o envio.', ephemeral: true });
 
                 try {
                     const canalTarget = await client.channels.fetch(config.canalId);
-                    const finalPayload = { content: config.texto, embeds: [], components: [] };
+                    
+                    // DESIGN NOVO: Mensagem final idêntica ao estilo moderno do seu print
+                    const embedAnuncio = new EmbedBuilder()
+                        .setColor('#2b2d31')
+                        .setDescription(config.texto);
 
                     if (config.banner) {
-                        const embedBanner = new EmbedBuilder().setImage(config.banner).setColor('#2b2d31');
-                        finalPayload.embeds.push(embedBanner);
+                        embedAnuncio.setImage(config.banner);
                     }
+
+                    const finalPayload = { embeds: [embedAnuncio], components: [] };
+
                     if (config.botaoLabel && config.botaoUrl) {
                         const r = new ActionRowBuilder().addComponents(
                             new ButtonBuilder().setLabel(config.botaoLabel).setUrl(config.botaoUrl).setStyle(ButtonStyle.Link)
@@ -170,7 +216,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 3. CAPTURA DO SELETOR DE CANAL (INTACTO)
+        // 3. CAPTURA DO SELETOR DE CANAL
         // =========================================================================
         if (interaction.isChannelSelectMenu()) {
             if (interaction.customId === 'select_canal_msg') {
@@ -189,31 +235,31 @@ module.exports = {
         }
 
         // =========================================================================
-        // 4. CAPTURA DAS SELEÇÕES DO MENU DROPDOWN (INTACTO)
+        // 4. CAPTURA DAS SELEÇÕES DO MENU DROPDOWN
         // =========================================================================
         if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'menu_config_anuncio') {
-                const config = client.anuncios?.[interaction.user.id];
-                if (!config) return interaction.reply({ content: '❌ Sessão não localizada. Recomece o processo.', ephemeral: true });
+                const config = obterOuRecuperarConfig(interaction, client);
+                if (!config) return interaction.reply({ content: '❌ Sessão expirada. Recomece usando `/painel`.', ephemeral: true });
 
                 const opcao = interaction.values[0];
 
                 if (opcao === 'opt_texto') {
                     const modal = new ModalBuilder().setCustomId('modal_set_texto').setTitle('Texto do Anúncio');
-                    const input = new TextInputBuilder().setCustomId('in_texto').setLabel('Mensagem (Suporta Emojis)').setStyle(TextInputStyle.Paragraph).setValue(config.texto).setRequired(true);
+                    const input = new TextInputBuilder().setCustomId('in_texto').setLabel('Mensagem (Suporta Emojis e Markdown)').setStyle(TextInputStyle.Paragraph).setValue(config.texto || '').setRequired(true);
                     modal.addComponents(new ActionRowBuilder().addComponents(input));
                     await interaction.showModal(modal);
                 } 
                 else if (opcao === 'opt_banner') {
                     const modal = new ModalBuilder().setCustomId('modal_set_banner').setTitle('Banner do Anúncio');
-                    const input = new TextInputBuilder().setCustomId('in_banner').setLabel('URL da Imagem (Deixe vazio para retirar)').setStyle(TextInputStyle.Short).setValue(config.banner).setRequired(false);
+                    const input = new TextInputBuilder().setCustomId('in_banner').setLabel('URL da Imagem').setStyle(TextInputStyle.Short).setValue(config.banner || '').setRequired(false);
                     modal.addComponents(new ActionRowBuilder().addComponents(input));
                     await interaction.showModal(modal);
                 } 
                 else if (opcao === 'opt_botao') {
                     const modal = new ModalBuilder().setCustomId('modal_set_botao').setTitle('Configurar Botão Clicável');
-                    const label = new TextInputBuilder().setCustomId('in_btn_label').setLabel('Texto do Botão').setStyle(TextInputStyle.Short).setValue(config.botaoLabel).setRequired(true);
-                    const url = new TextInputBuilder().setCustomId('in_btn_url').setLabel('Link de Destino (https://...)').setStyle(TextInputStyle.Short).setValue(config.botaoUrl).setRequired(true);
+                    const label = new TextInputBuilder().setCustomId('in_btn_label').setLabel('Texto do Botão').setStyle(TextInputStyle.Short).setValue(config.botaoLabel || '').setRequired(true);
+                    const url = new TextInputBuilder().setCustomId('in_btn_url').setLabel('Link de Destino (https://...)').setStyle(TextInputStyle.Short).setValue(config.botaoUrl || '').setRequired(true);
                     modal.addComponents(new ActionRowBuilder().addComponents(label), new ActionRowBuilder().addComponents(url));
                     await interaction.showModal(modal);
                 }
@@ -222,10 +268,10 @@ module.exports = {
         }
 
         // =========================================================================
-        // 5. PROCESSAMENTO DOS FORMULÁRIOS MODALS (INTACTO)
+        // 5. PROCESSAMENTO DOS FORMULÁRIOS (MODALS)
         // =========================================================================
         if (interaction.isModalSubmit()) {
-            const config = client.anuncios?.[interaction.user.id];
+            const config = obterOuRecuperarConfig(interaction, client);
 
             if (interaction.customId === 'modal_set_texto' && config) {
                 config.texto = interaction.fields.getTextInputValue('in_texto');
@@ -249,7 +295,7 @@ module.exports = {
             if (interaction.customId === 'modal_config_limpeza') {
                 const novoId = interaction.fields.getTextInputValue('novo_canal_id');
                 client.canalLimpezaId = novoId; 
-                await interaction.reply({ content: `✅ Configuração updated! Monitorando <#${novoId}>.`, ephemeral: true });
+                await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>.`, ephemeral: true });
                 return;
             }
         }
