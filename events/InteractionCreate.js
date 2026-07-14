@@ -1,4 +1,3 @@
-
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 
 module.exports = {
@@ -6,7 +5,7 @@ module.exports = {
     async execute(interaction) {
         const client = interaction.client;
 
-        // Dupla validação de segurança para Administradores
+        // Validação de segurança para Administradores
         if (interaction.isChatInputCommand() || interaction.isButton() || interaction.isModalSubmit()) {
             if (!interaction.member.permissions.has('Administrator')) {
                 return interaction.reply({ content: '❌ Apenas administradores com a permissão "Administrador" podem usar estas funções.', ephemeral: true });
@@ -14,39 +13,45 @@ module.exports = {
         }
 
         // =========================================================================
-        // 1. CAPTURA DO COMANDO SLASH (/painel)
+        // 1. CAPTURA E REDESIGN DO COMANDO SLASH (/painel)
         // =========================================================================
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'painel') {
+                
+                // Criando um visual muito mais limpo e profissional
                 const embedPainel = new EmbedBuilder()
-                    .setTitle('⚙️ Painel de Controle Administrativo')
-                    .setDescription('Gerencie as funções do bot em tempo real de forma otimizada.')
-                    .setColor('#2b2d31')
+                    .setTitle('⚡ WW BOT MOD · Central Administrativa')
+                    .setDescription('Seja bem-vindo ao painel de controle principal. Use os botões abaixo para gerenciar as funções do servidor em tempo real.')
+                    .setColor('#5865f2') // Cor oficial do Discord (Blurple) para um ar premium
                     .addFields(
-                        { name: '🧹 Canal de Limpeza Ativo:', value: client.canalLimpezaId ? `<#${client.canalLimpezaId}>` : '*Nenhum configurado*' }
+                        { name: '🛰️ Status do Bot', value: '🟢 `Operacional`', inline: true },
+                        { name: '⚙️ Permissão', value: '🛡️ `Admin`', inline: true },
+                        { name: '🧹 Canal de Limpeza Ativo', value: client.canalLimpezaId ? `🟢 <#${client.canalLimpezaId}>` : '❌ `Nenhum configurado`', inline: false }
                     )
-                    .setFooter({ text: 'Compatível com Containers v2 e Slash Commands.' })
+                    .setFooter({ text: `WW BOT • Soluções Avançadas`, iconURL: interaction.guild.iconURL() })
                     .setTimestamp();
 
+                // Customizando os botões com novas cores (Styles) e emojis melhores
                 const row = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('btn_enviar_msg')
-                        .setLabel('📩 Enviar Mensagem')
-                        .setStyle(ButtonStyle.Primary),
+                        .setLabel('Enviar Mensagem')
+                        .setEmoji('📢')
+                        .setStyle(ButtonStyle.Success), // Botão Verde (Sucesso)
                     new ButtonBuilder()
                         .setCustomId('btn_config_limpeza')
-                        .setLabel('🔧 Alterar Canal de Limpeza')
-                        .setStyle(ButtonStyle.Secondary)
+                        .setLabel('Configurar Chat')
+                        .setEmoji('⚙️')
+                        .setStyle(ButtonStyle.Primary) // Botão Azul (Principal)
                 );
 
-                // Responde nativamente ao comando de barra
                 await interaction.reply({ embeds: [embedPainel], components: [row] });
                 return;
             }
         }
 
         // =========================================================================
-        // 2. INTERAÇÕES DOS BOTÕES (Mantido a lógica original)
+        // 2. INTERAÇÕES DOS BOTÕES (Mantido IDs originais para não quebrar nada)
         // =========================================================================
         if (interaction.isButton()) {
             if (interaction.customId === 'btn_enviar_msg') {
@@ -102,7 +107,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 3. PROCESSAMENTO DOS FORMULÁRIOS (MODALS) (Mantido a lógica original)
+        // 3. PROCESSAMENTO DOS FORMULÁRIOS (MODALS)
         // =========================================================================
         if (interaction.isModalSubmit()) {
             if (interaction.customId === 'modal_enviar_msg') {
@@ -134,7 +139,7 @@ module.exports = {
                 const novoId = interaction.fields.getTextInputValue('novo_canal_id');
                 client.canalLimpezaId = novoId; 
                 
-                await interaction.reply({ content: `✅ Configuração updated! Monitorando <#${novoId}>. \n⚠️ *Nota: Se o container reiniciar, voltará ao ID padrão do .env.*`, ephemeral: true });
+                await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>. \n⚠️ *Nota: Se o container reiniciar, voltará ao ID padrão do .env.*`, ephemeral: true });
             }
         }
     },
