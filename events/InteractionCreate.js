@@ -8,7 +8,7 @@ const {
     TextInputStyle,
     ChannelSelectMenuBuilder,
     StringSelectMenuBuilder,
-    MessageFlags // 🔧 Importado para corrigir o aviso de "ephemeral" do console
+    MessageFlags // 🔧 Essencial para corrigir o aviso de "ephemeral" do console
 } = require('discord.js');
 
 // Função de renderização do painel interno do STAFF
@@ -103,7 +103,7 @@ module.exports = {
             }
 
             // =========================================================================
-            // 1. COMANDO /PAINEL (CORRIGIDO SEM EMOJIS CORROMPIDOS)
+            // 1. COMANDO /PAINEL
             // =========================================================================
             if (interaction.isChatInputCommand?.() || (interaction.type === 2 && !interaction.isButton?.())) {
                 if (interaction.commandName === 'painel') {
@@ -111,12 +111,12 @@ module.exports = {
                         new ButtonBuilder()
                             .setCustomId('btn_enviar_msg')
                             .setLabel('Mensagem Personalizada')
-                            .setEmoji('📩') // ⚙️ Ajustado para emoji padrão estável
+                            .setEmoji('📩')
                             .setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder()
                             .setCustomId('btn_config_limpeza')
                             .setLabel('Configurar Chat')
-                            .setEmoji('⚙️') // ⚙️ Ajustado para emoji padrão estável
+                            .setEmoji('⚙️')
                             .setStyle(ButtonStyle.Secondary)
                     );
 
@@ -147,19 +147,28 @@ module.exports = {
                     const config = obterOuRecuperarConfig(interaction, client);
                     if (!config) return interaction.reply({ content: '❌ Sessão expirada. Use `/painel` para recomeçar.', flags: [MessageFlags.Ephemeral] });
 
-                    const embedAnuncio = new EmbedBuilder()
-                        .setColor('#2b2d31') 
-                        .setDescription(config.texto || '👉 *Nenhum texto configurado ainda.*');
+                    // Formato de contêiner usando Markdown do Discord (>>> )
+                    const textoFormatado = config.texto ? `>>> ${config.texto}` : '👉 *Nenhum texto configurado ainda.*';
 
+                    const payload = { 
+                        content: textoFormatado, 
+                        embeds: [], 
+                        components: [], 
+                        flags: [MessageFlags.Ephemeral] 
+                    };
+                    
+                    // Adiciona o banner como embed de imagem caso exista
                     if (config.banner) {
-                        embedAnuncio.setImage(config.banner);
+                        const embedImagem = new EmbedBuilder().setColor('#2b2d31').setImage(config.banner);
+                        payload.embeds.push(embedImagem);
                     }
 
-                    const payload = { embeds: [embedAnuncio], components: [], flags: [MessageFlags.Ephemeral] };
-                    
                     if (config.botaoLabel && config.botaoUrl) {
                         const r = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setLabel(config.botaoLabel).setUrl(config.botaoUrl).setStyle(ButtonStyle.Link)
+                            new ButtonBuilder()
+                                .setLabel(config.botaoLabel)
+                                .setURL(config.botaoUrl) // 🔧 CORRIGIDO: setURL em maiúsculas para não quebrar!
+                                .setStyle(ButtonStyle.Link)
                         );
                         payload.components.push(r);
                     }
@@ -174,19 +183,26 @@ module.exports = {
                     try {
                         const canalTarget = await client.channels.fetch(config.canalId);
                         
-                        const embedAnuncio = new EmbedBuilder()
-                            .setColor('#2b2d31')
-                            .setDescription(config.texto);
+                        // Formato de contêiner usando Markdown do Discord (>>> )
+                        const textoFormatado = `>>> ${config.texto}`;
+
+                        const finalPayload = { 
+                            content: textoFormatado, 
+                            embeds: [], 
+                            components: [] 
+                        };
 
                         if (config.banner) {
-                            embedAnuncio.setImage(config.banner);
+                            const embedImagem = new EmbedBuilder().setColor('#2b2d31').setImage(config.banner);
+                            finalPayload.embeds.push(embedImagem);
                         }
-
-                        const finalPayload = { embeds: [embedAnuncio], components: [] };
 
                         if (config.botaoLabel && config.botaoUrl) {
                             const r = new ActionRowBuilder().addComponents(
-                                new ButtonBuilder().setLabel(config.botaoLabel).setUrl(config.botaoUrl).setStyle(ButtonStyle.Link)
+                                new ButtonBuilder()
+                                    .setLabel(config.botaoLabel)
+                                    .setURL(config.botaoUrl) // 🔧 CORRIGIDO: setURL em maiúsculas para não quebrar!
+                                    .setStyle(ButtonStyle.Link)
                             );
                             finalPayload.components.push(r);
                         }
@@ -194,9 +210,10 @@ module.exports = {
                         await canalTarget.send(finalPayload);
                         if (client.anuncios) delete client.anuncios[interaction.user.id];
 
-                        await interaction.reply({ content: '🚀 Mensagem enviada com sucesso ao canal de destino!', flags: [MessageFlags.Ephemeral] });
+                        await interaction.reply({ content: '🚀 Mensagem enviada com sucesso no formato de contêiner!', flags: [MessageFlags.Ephemeral] });
                     } catch (err) {
-                        await interaction.reply({ content: '❌ Falha ao enviar. Verifique se o bot possui as permissões necessárias no canal.', flags: [MessageFlags.Ephemeral] });
+                        console.error(err);
+                        await interaction.reply({ content: '❌ Falha ao enviar. Verifique as permissões do bot no canal de destino ou se o link do botão é válido.', flags: [MessageFlags.Ephemeral] });
                     }
                     return;
                 }
