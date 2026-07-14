@@ -21,39 +21,36 @@ const client = new Client({
 
 const TOKEN = process.env.DISCORD_TOKEN;
 
-// Mudamos para 'let' para que o ID possa ser alterado em tempo real pelo painel administrativo
+// Variável em memória (Atenção: containers v2 resetam isso ao reiniciar!)
 let canalLimpezaId = process.env.CANAL_ID;
 
 client.once('ready', () => {
-    console.log(`✅ Bot de limpeza e gerenciamento ativo como ${client.user.tag}`);
+    console.log(`✅ Bot de limpeza ativo como ${client.user.tag} (Ambiente: Container v2)`);
 });
 
+// =========================================================================
+// MONITORAMENTO E COMANDOS
+// =========================================================================
 client.on('messageCreate', async (message) => {
-    // Ignora mensagens de outros bots para evitar loops
     if (message.author.bot) return;
 
-    // =========================================================================
     // 1. COMANDO DO PAINEL ADMINISTRATIVO
-    // =========================================================================
     if (message.content === '!painel') {
-        // Segurança: Só permite que Administradores vejam/criem o painel
         if (!message.member.permissions.has('Administrator')) {
             return message.reply('❌ Você não tem permissão para usar este comando.')
                 .then(msg => setTimeout(() => msg.delete(), 5000));
         }
 
-        // Criando um Embed elegante para o Painel
         const embedPainel = new EmbedBuilder()
             .setTitle('⚙️ Painel de Controle Administrativo')
-            .setDescription('Seja bem-vindo ao centro de controle. Use os botões abaixo para gerenciar as funções do bot em tempo real.')
+            .setDescription('Gerencie as funções do bot em tempo real de forma otimizada.')
             .setColor('#2b2d31')
             .addFields(
                 { name: '🧹 Canal de Limpeza Ativo:', value: canalLimpezaId ? `<#${canalLimpezaId}>` : '*Nenhum configurado*' }
             )
-            .setFooter({ text: 'Painel restrito para Administradores.' })
+            .setFooter({ text: 'Compatível com Containers v2.' })
             .setTimestamp();
 
-        // Criando os botões interativos
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('btn_enviar_msg')
@@ -65,46 +62,38 @@ client.on('messageCreate', async (message) => {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        // Envia o painel no chat
         await message.channel.send({ embeds: [embedPainel], components: [row] });
         
-        // Apaga o comando "!painel" digitado pelo admin para manter o chat limpo
         try { await message.delete(); } catch (err) {}
         return;
     }
 
-    // =========================================================================
-    // 2. MONITORAMENTO E LIMPEZA DE CHAT
-    // =========================================================================
+    // 2. LIMPEZA DE CHAT IMEDIATA
     if (canalLimpezaId && message.channel.id === canalLimpezaId) {
         if (message.pinned) return;
 
         setTimeout(async () => {
             try {
                 await message.delete();
-                console.log(`Mensagem de ${message.author.tag} removida.`);
+                console.log(`[Container LOG] Mensagem de ${message.author.tag} removida.`);
             } catch (err) {
                 console.error("Erro ao apagar mensagem individual:", err);
             }
-        }, 1000); // Mantido o delay de 1 segundo que você configurou
+        }, 1000);
     }
 });
 
 // =========================================================================
-// 3. TRATAMENTO DE INTERAÇÕES (BOTÕES E FORMULÁRIOS)
+// INTERAÇÕES (BOTÕES E FORMULÁRIOS)
 // =========================================================================
 client.on('interactionCreate', async (interaction) => {
-    // Dupla validação de segurança para impedir cliques maliciosos
     if (interaction.isButton() || interaction.isModalSubmit()) {
         if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({ content: '❌ Apenas administradores podem interagir com este painel.', ephemeral: true });
         }
     }
 
-    // --- INTERAÇÕES DOS BOTÕES ---
     if (interaction.isButton()) {
-        
-        // Clicou em "Enviar Mensagem" -> Abre um formulário (Modal)
         if (interaction.customId === 'btn_enviar_msg') {
             const modal = new ModalBuilder()
                 .setCustomId('modal_enviar_msg')
@@ -114,7 +103,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setCustomId('msg_canal_id')
                 .setLabel('ID do Canal de Destino')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('Cole aqui o ID do canal que vai receber a mensagem')
+                .setPlaceholder('Cole aqui o ID do canal')
                 .setRequired(true);
 
             const tituloInput = new TextInputBuilder()
@@ -140,7 +129,6 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.showModal(modal);
         }
 
-        // Clicou em "Alterar Canal de Limpeza" -> Abre formulário para mudar ID
         if (interaction.customId === 'btn_config_limpeza') {
             const modal = new ModalBuilder()
                 .setCustomId('modal_config_limpeza')
@@ -158,10 +146,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // --- PROCESSAMENTO DOS FORMULÁRIOS ENVIADOS (MODALS) ---
     if (interaction.isModalSubmit()) {
-        
-        // Resposta do formulário de envio de mensagens
         if (interaction.customId === 'modal_enviar_msg') {
             const canalId = interaction.fields.getTextInputValue('msg_canal_id');
             const titulo = interaction.fields.getTextInputValue('msg_titulo');
@@ -170,33 +155,42 @@ client.on('interactionCreate', async (interaction) => {
             try {
                 const canalTarget = await client.channels.fetch(canalId);
                 if (!canalTarget || !canalTarget.isTextBased()) {
-                    return interaction.reply({ content: '❌ O ID fornecido não pertence a um canal de texto válido.', ephemeral: true });
+                    return interaction.reply({ content: '❌ Canal de texto inválido.', ephemeral: true });
                 }
 
-                // Cria o Embed que será enviado ao chat selecionado
                 const embedEnvio = new EmbedBuilder()
                     .setTitle(titulo)
                     .setDescription(texto)
-                    .setColor('#00ff7f') // Tom de verde profissional
+                    .setColor('#00ff7f')
                     .setTimestamp();
 
                 await canalTarget.send({ embeds: [embedEnvio] });
-                await interaction.reply({ content: `✅ Mensagem enviada com sucesso para o canal <#${canalId}>!`, ephemeral: true });
+                await interaction.reply({ content: `✅ Mensagem enviada para <#${canalId}>!`, ephemeral: true });
             
             } catch (error) {
-                console.error(error);
-                await interaction.reply({ content: '❌ Falha ao enviar. Verifique se o ID está correto e se eu tenho a permissão "Enviar Mensagens" no canal destino.', ephemeral: true });
+                await interaction.reply({ content: '❌ Falha ao enviar. Verifique as permissões.', ephemeral: true });
             }
         }
 
-        // Resposta do formulário de alteração de canal
         if (interaction.customId === 'modal_config_limpeza') {
             const novoId = interaction.fields.getTextInputValue('novo_canal_id');
-            canalLimpezaId = novoId; // Atualiza a variável global temporariamente em memória
+            canalLimpezaId = novoId; 
             
-            await interaction.reply({ content: `✅ Configuração atualizada! Agora estou monitorando e limpando o canal <#${novoId}>.`, ephemeral: true });
+            await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>. \n⚠️ *Nota: Se o container reiniciar, voltará ao ID padrão do .env.*`, ephemeral: true });
         }
     }
 });
+
+// =========================================================================
+// GERENCIAMENTO DO PROCESSO (ESSENCIAL PARA CONTAINERS V2)
+// =========================================================================
+const desligamentoGracioso = (sinal) => {
+    console.log(`\n🛑 Sinal de ${sinal} recebido. Desligando o bot de forma limpa...`);
+    client.destroy(); // Desconecta o bot do Discord de forma correta
+    process.exit(0);
+};
+
+process.on('SIGTERM', () => desligamentoGracioso('SIGTERM'));
+process.on('SIGINT', () => desligamentoGracioso('SIGINT'));
 
 client.login(TOKEN);
