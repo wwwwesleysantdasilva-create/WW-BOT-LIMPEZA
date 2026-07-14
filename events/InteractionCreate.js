@@ -1,18 +1,53 @@
-const { EmbedBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
         const client = interaction.client;
 
-        // Dupla validação de segurança
-        if (interaction.isButton() || interaction.isModalSubmit()) {
+        // Dupla validação de segurança para Administradores
+        if (interaction.isChatInputCommand() || interaction.isButton() || interaction.isModalSubmit()) {
             if (!interaction.member.permissions.has('Administrator')) {
-                return interaction.reply({ content: '❌ Apenas administradores podem interagir com este painel.', ephemeral: true });
+                return interaction.reply({ content: '❌ Apenas administradores com a permissão "Administrador" podem usar estas funções.', ephemeral: true });
             }
         }
 
-        // --- INTERAÇÕES DOS BOTÕES ---
+        // =========================================================================
+        // 1. CAPTURA DO COMANDO SLASH (/painel)
+        // =========================================================================
+        if (interaction.isChatInputCommand()) {
+            if (interaction.commandName === 'painel') {
+                const embedPainel = new EmbedBuilder()
+                    .setTitle('⚙️ Painel de Controle Administrativo')
+                    .setDescription('Gerencie as funções do bot em tempo real de forma otimizada.')
+                    .setColor('#2b2d31')
+                    .addFields(
+                        { name: '🧹 Canal de Limpeza Ativo:', value: client.canalLimpezaId ? `<#${client.canalLimpezaId}>` : '*Nenhum configurado*' }
+                    )
+                    .setFooter({ text: 'Compatível com Containers v2 e Slash Commands.' })
+                    .setTimestamp();
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('btn_enviar_msg')
+                        .setLabel('📩 Enviar Mensagem')
+                        .setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder()
+                        .setCustomId('btn_config_limpeza')
+                        .setLabel('🔧 Alterar Canal de Limpeza')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+
+                // Responde nativamente ao comando de barra
+                await interaction.reply({ embeds: [embedPainel], components: [row] });
+                return;
+            }
+        }
+
+        // =========================================================================
+        // 2. INTERAÇÕES DOS BOTÕES (Mantido a lógica original)
+        // =========================================================================
         if (interaction.isButton()) {
             if (interaction.customId === 'btn_enviar_msg') {
                 const modal = new ModalBuilder()
@@ -66,7 +101,9 @@ module.exports = {
             }
         }
 
-        // --- PROCESSAMENTO DOS FORMULÁRIOS ENVIADOS (MODALS) ---
+        // =========================================================================
+        // 3. PROCESSAMENTO DOS FORMULÁRIOS (MODALS) (Mantido a lógica original)
+        // =========================================================================
         if (interaction.isModalSubmit()) {
             if (interaction.customId === 'modal_enviar_msg') {
                 const canalId = interaction.fields.getTextInputValue('msg_canal_id');
@@ -95,11 +132,9 @@ module.exports = {
 
             if (interaction.customId === 'modal_config_limpeza') {
                 const novoId = interaction.fields.getTextInputValue('novo_canal_id');
-                
-                // Atualiza a variável global salva dentro do próprio client
                 client.canalLimpezaId = novoId; 
                 
-                await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>. \n⚠️ *Nota: Se o container reiniciar, voltará ao ID padrão do .env.*`, ephemeral: true });
+                await interaction.reply({ content: `✅ Configuração updated! Monitorando <#${novoId}>. \n⚠️ *Nota: Se o container reiniciar, voltará ao ID padrão do .env.*`, ephemeral: true });
             }
         }
     },
