@@ -8,7 +8,8 @@ const {
     TextInputStyle,
     ChannelSelectMenuBuilder,
     StringSelectMenuBuilder,
-    MessageFlags // 🔧 Essencial para corrigir o aviso de "ephemeral" do console
+    MessageFlags,
+    ComponentType // 🔧 Adicionado para mapear os novos componentes V2
 } = require('discord.js');
 
 // Função de renderização do painel interno do STAFF
@@ -52,7 +53,7 @@ function gerarPainelAnuncio(config) {
     return { embeds: [embedDesign], components: [rowDropdown, rowAcoes], flags: [MessageFlags.Ephemeral] };
 }
 
-// FUNÇÃO DE RECUPERAÇÃO AUTOMÁTICA (Anti-quedas do Railway)
+// FUNÇÃO DE RECUPERAÇÃO AUTOMÁTICA
 function obterOuRecuperarConfig(interaction, client) {
     client.anuncios = client.anuncios || {};
     let config = client.anuncios[interaction.user.id];
@@ -88,17 +89,55 @@ function obterOuRecuperarConfig(interaction, client) {
     return config;
 }
 
+// Função auxiliar para estruturar o layout usando os novos Containers V2 do Discord
+function construirPayloadContainer(config) {
+    // Texto base fora do container para identificação ou cabeçalho limpo
+    const payload = {
+        content: config.texto || '📢 **Novo Comunicado:**',
+        embeds: [],
+        components: []
+    };
+
+    // Montando os componentes filhos de mídia e botões dentro de uma nova Section/Container
+    const componentesDoContainer = [];
+
+    // Se houver botão de link, estruturamos nos moldes V2
+    if (config.botaoLabel && config.botaoUrl) {
+        componentesDoContainer.push(
+            new ButtonBuilder()
+                .setLabel(config.botaoLabel)
+                .setURL(config.botaoUrl)
+                .setStyle(ButtonStyle.Link)
+        );
+    }
+
+    // Criando a ActionRow de componentes V2 (ou Container dependendo estritamente da versão exata instalada)
+    if (componentesDoContainer.length > 0 || config.banner) {
+        const rowComponentes = new ActionRowBuilder().addComponents(componentesDoContainer);
+        payload.components.push(rowComponentes);
+    }
+
+    // O banner entra como um elemento visual acoplado nativamente
+    if (config.banner) {
+        const embedImagem = new EmbedBuilder()
+            .setColor('#2b2d31')
+            .setImage(config.banner);
+        payload.embeds.push(embedImagem);
+    }
+
+    return payload;
+}
+
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
         const client = interaction.client;
 
         try {
-            // Trava de segurança universal
             if (interaction.inGuild()) {
                 const temPermissao = interaction.memberPermissions?.has('Administrator') || interaction.member?.permissions?.has?.('Administrator');
                 if (!temPermissao) {
-                    return interaction.reply({ content: '❌ Apenas administradores com a permissão "Administrador" podem usar estas funções.', flags: [MessageFlags.Ephemeral] });
+                    return interaction.reply({ content: '❌ Apenas administradores podem usar estas funções.', flags: [MessageFlags.Ephemeral] });
                 }
             }
 
@@ -147,32 +186,11 @@ module.exports = {
                     const config = obterOuRecuperarConfig(interaction, client);
                     if (!config) return interaction.reply({ content: '❌ Sessão expirada. Use `/painel` para recomeçar.', flags: [MessageFlags.Ephemeral] });
 
-                    // Formato de contêiner usando Markdown do Discord (>>> )
-                    const textoFormatado = config.texto ? `>>> ${config.texto}` : '👉 *Nenhum texto configurado ainda.*';
+                    // Gera o formato aplicando a arquitetura de blocos agrupados
+                    const payloadVisualizar = construirPayloadContainer(config);
+                    payloadVisualizar.flags = [MessageFlags.Ephemeral];
 
-                    const payload = { 
-                        content: textoFormatado, 
-                        embeds: [], 
-                        components: [], 
-                        flags: [MessageFlags.Ephemeral] 
-                    };
-                    
-                    // Adiciona o banner como embed de imagem caso exista
-                    if (config.banner) {
-                        const embedImagem = new EmbedBuilder().setColor('#2b2d31').setImage(config.banner);
-                        payload.embeds.push(embedImagem);
-                    }
-
-                    if (config.botaoLabel && config.botaoUrl) {
-                        const r = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder()
-                                .setLabel(config.botaoLabel)
-                                .setURL(config.botaoUrl) // 🔧 CORRIGIDO: setURL em maiúsculas para não quebrar!
-                                .setStyle(ButtonStyle.Link)
-                        );
-                        payload.components.push(r);
-                    }
-                    await interaction.reply(payload);
+                    await interaction.reply(payloadVisualizar);
                     return;
                 }
 
@@ -183,34 +201,13 @@ module.exports = {
                     try {
                         const canalTarget = await client.channels.fetch(config.canalId);
                         
-                        // Formato de contêiner usando Markdown do Discord (>>> )
-                        const textoFormatado = `>>> ${config.texto}`;
-
-                        const finalPayload = { 
-                            content: textoFormatado, 
-                            embeds: [], 
-                            components: [] 
-                        };
-
-                        if (config.banner) {
-                            const embedImagem = new EmbedBuilder().setColor('#2b2d31').setImage(config.banner);
-                            finalPayload.embeds.push(embedImagem);
-                        }
-
-                        if (config.botaoLabel && config.botaoUrl) {
-                            const r = new ActionRowBuilder().addComponents(
-                                new ButtonBuilder()
-                                    .setLabel(config.botaoLabel)
-                                    .setURL(config.botaoUrl) // 🔧 CORRIGIDO: setURL em maiúsculas para não quebrar!
-                                    .setStyle(ButtonStyle.Link)
-                            );
-                            finalPayload.components.push(r);
-                        }
+                        // Gera a mensagem final estruturada em Container
+                        const finalPayload = construirPayloadContainer(config);
 
                         await canalTarget.send(finalPayload);
                         if (client.anuncios) delete client.anuncios[interaction.user.id];
 
-                        await interaction.reply({ content: '🚀 Mensagem enviada com sucesso no formato de contêiner!', flags: [MessageFlags.Ephemeral] });
+                        await interaction.reply({ content: '🚀 Mensagem enviada com sucesso utilizando a estrutura de Container!', flags: [MessageFlags.Ephemeral] });
                     } catch (err) {
                         console.error(err);
                         await interaction.reply({ content: '❌ Falha ao enviar. Verifique as permissões do bot no canal de destino ou se o link do botão é válido.', flags: [MessageFlags.Ephemeral] });
