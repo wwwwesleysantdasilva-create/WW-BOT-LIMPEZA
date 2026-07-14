@@ -7,10 +7,11 @@ const {
     TextInputBuilder, 
     TextInputStyle,
     ChannelSelectMenuBuilder,
-    StringSelectMenuBuilder
+    StringSelectMenuBuilder,
+    MessageFlags // 🔧 Importado para corrigir o aviso de "ephemeral" do console
 } = require('discord.js');
 
-// Função de renderização do painel interno do STAFF (Estilo FAQ Dropdown)
+// Função de renderização do painel interno do STAFF
 function gerarPainelAnuncio(config) {
     const embedDesign = new EmbedBuilder()
         .setTitle('⚙️ Configuração de Anúncio')
@@ -48,7 +49,7 @@ function gerarPainelAnuncio(config) {
             .setStyle(ButtonStyle.Danger)
     );
 
-    return { embeds: [embedDesign], components: [rowDropdown, rowAcoes], ephemeral: true };
+    return { embeds: [embedDesign], components: [rowDropdown, rowAcoes], flags: [MessageFlags.Ephemeral] };
 }
 
 // FUNÇÃO DE RECUPERAÇÃO AUTOMÁTICA (Anti-quedas do Railway)
@@ -93,16 +94,16 @@ module.exports = {
         const client = interaction.client;
 
         try {
-            // 🛡️ Trava de segurança universal (Lê qualquer propriedade de permissão disponível)
+            // Trava de segurança universal
             if (interaction.inGuild()) {
                 const temPermissao = interaction.memberPermissions?.has('Administrator') || interaction.member?.permissions?.has?.('Administrator');
                 if (!temPermissao) {
-                    return interaction.reply({ content: '❌ Apenas administradores com a permissão "Administrador" podem usar estas funções.', ephemeral: true });
+                    return interaction.reply({ content: '❌ Apenas administradores com a permissão "Administrador" podem usar estas funções.', flags: [MessageFlags.Ephemeral] });
                 }
             }
 
             // =========================================================================
-            // 1. COMANDO /PAINEL
+            // 1. COMANDO /PAINEL (CORRIGIDO SEM EMOJIS CORROMPIDOS)
             // =========================================================================
             if (interaction.isChatInputCommand?.() || (interaction.type === 2 && !interaction.isButton?.())) {
                 if (interaction.commandName === 'painel') {
@@ -110,19 +111,19 @@ module.exports = {
                         new ButtonBuilder()
                             .setCustomId('btn_enviar_msg')
                             .setLabel('Mensagem Personalizada')
-                            .setEmoji('<:emoji_35:1526555628242472991>')
+                            .setEmoji('📩') // ⚙️ Ajustado para emoji padrão estável
                             .setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder()
                             .setCustomId('btn_config_limpeza')
                             .setLabel('Configurar Chat')
-                            .setEmoji('<a:emoji_36:1526557977710956715>')
+                            .setEmoji('⚙️') // ⚙️ Ajustado para emoji padrão estável
                             .setStyle(ButtonStyle.Secondary)
                     );
 
                     await interaction.reply({ 
                         content: 'https://i.postimg.cc/NMQktv5h/3E253502-A13F-4441-8D2E-E10F8B291422.jpg', 
                         components: [row],
-                        ephemeral: true 
+                        flags: [MessageFlags.Ephemeral] 
                     });
                     return;
                 }
@@ -138,13 +139,13 @@ module.exports = {
                         .setPlaceholder('Selecione o canal de destino...');
 
                     const rowSelect = new ActionRowBuilder().addComponents(selectCanal);
-                    await interaction.reply({ content: '👉 **Selecione o canal destino:**', components: [rowSelect], ephemeral: true });
+                    await interaction.reply({ content: '👉 **Selecione o canal destino:**', components: [rowSelect], flags: [MessageFlags.Ephemeral] });
                     return;
                 }
 
                 if (interaction.customId === 'btn_anuncio_visualizar') {
                     const config = obterOuRecuperarConfig(interaction, client);
-                    if (!config) return interaction.reply({ content: '❌ Sessão expirada. Use `/painel` para recomeçar.', ephemeral: true });
+                    if (!config) return interaction.reply({ content: '❌ Sessão expirada. Use `/painel` para recomeçar.', flags: [MessageFlags.Ephemeral] });
 
                     const embedAnuncio = new EmbedBuilder()
                         .setColor('#2b2d31') 
@@ -154,7 +155,7 @@ module.exports = {
                         embedAnuncio.setImage(config.banner);
                     }
 
-                    const payload = { embeds: [embedAnuncio], components: [], ephemeral: true };
+                    const payload = { embeds: [embedAnuncio], components: [], flags: [MessageFlags.Ephemeral] };
                     
                     if (config.botaoLabel && config.botaoUrl) {
                         const r = new ActionRowBuilder().addComponents(
@@ -168,7 +169,7 @@ module.exports = {
 
                 if (interaction.customId === 'btn_anuncio_enviar') {
                     const config = obterOuRecuperarConfig(interaction, client);
-                    if (!config || !config.texto) return interaction.reply({ content: '❌ Preencha pelo menos o texto da mensagem antes de realizar o envio.', ephemeral: true });
+                    if (!config || !config.texto) return interaction.reply({ content: '❌ Preencha pelo menos o texto da mensagem antes de realizar o envio.', flags: [MessageFlags.Ephemeral] });
 
                     try {
                         const canalTarget = await client.channels.fetch(config.canalId);
@@ -193,9 +194,9 @@ module.exports = {
                         await canalTarget.send(finalPayload);
                         if (client.anuncios) delete client.anuncios[interaction.user.id];
 
-                        await interaction.reply({ content: '🚀 Mensagem enviada com sucesso ao canal de destino!', ephemeral: true });
+                        await interaction.reply({ content: '🚀 Mensagem enviada com sucesso ao canal de destino!', flags: [MessageFlags.Ephemeral] });
                     } catch (err) {
-                        await interaction.reply({ content: '❌ Falha ao enviar. Verifique se o bot possui as permissões necessárias no canal.', ephemeral: true });
+                        await interaction.reply({ content: '❌ Falha ao enviar. Verifique se o bot possui as permissões necessárias no canal.', flags: [MessageFlags.Ephemeral] });
                     }
                     return;
                 }
@@ -210,7 +211,7 @@ module.exports = {
             }
 
             // =========================================================================
-            // 3. CAPTURA DO SELETOR DE CANAL (Identificação direta por ID)
+            // 3. CAPTURA DO SELETOR DE CANAL
             // =========================================================================
             if (interaction.customId === 'select_canal_msg') {
                 client.anuncios = client.anuncios || {};
@@ -227,11 +228,11 @@ module.exports = {
             }
 
             // =========================================================================
-            // 4. CAPTURA DAS SELEÇÕES DO MENU DROPDOWN (Identificação direta por ID)
+            // 4. CAPTURA DAS SELEÇÕES DO MENU DROPDOWN
             // =========================================================================
             if (interaction.customId === 'menu_config_anuncio') {
                 const config = obterOuRecuperarConfig(interaction, client);
-                if (!config) return interaction.reply({ content: '❌ Sessão expirada. Recomece usando `/painel`.', ephemeral: true });
+                if (!config) return interaction.reply({ content: '❌ Sessão expirada. Recomece usando `/painel`.', flags: [MessageFlags.Ephemeral] });
 
                 const opcao = interaction.values[0];
 
@@ -285,23 +286,21 @@ module.exports = {
                 if (interaction.customId === 'modal_config_limpeza') {
                     const novoId = interaction.fields.getTextInputValue('novo_canal_id');
                     client.canalLimpezaId = novoId; 
-                    await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>.`, ephemeral: true });
+                    await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>.`, flags: [MessageFlags.Ephemeral] });
                     return;
                 }
             }
         } catch (error) {
-            // 🚨 SISTEMA DE CAPTURA INTERNA
             console.error('❌ [ERRO CRÍTICO NO INTERACTIONCREATE]:', error);
-            
             try {
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({ 
-                        content: `⚠️ **Erro interno detectado:** \`${error.message}\`\nPor favor, verifique os logs do Railway para ver os detalhes da linha correspondente.`, 
-                        ephemeral: true 
+                        content: `⚠️ **Erro interno detectado:** \`${error.message}\``, 
+                        flags: [MessageFlags.Ephemeral] 
                     });
                 }
             } catch (e) {
-                console.error('Não foi possível responder a interação com o erro:', e);
+                console.error('Não foi possível responder com o erro:', e);
             }
         }
     },
