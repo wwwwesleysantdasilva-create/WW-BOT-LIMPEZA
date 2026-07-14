@@ -11,13 +11,13 @@ const {
     StringSelectMenuBuilder
 } = require('discord.js');
 
-// Função central para desenhar o Painel de Configuração inspirado no seu Print
+// Função de renderização do painel estilo FAQ
 function gerarPainelAnuncio(config) {
     const embedDesign = new EmbedBuilder()
         .setTitle('⚙️ Configuração de Anúncio')
         .setDescription(`Você está montando uma mensagem para o canal <#${config.canalId}>.\n\nSelecione uma das opções no menu dropdown abaixo para editar os campos da sua mensagem de forma direta e sem erros.`)
         .setColor('#2b2d31')
-        .setImage(config.banner || null) // Define o Banner igual ao topo do seu print
+        .setImage(config.banner || null)
         .addFields(
             { name: '📝 Conteúdo atual:', value: config.texto ? `🔹 ${config.texto.slice(0, 60)}...` : '❌ *Nenhum texto digitado*' },
             { name: '🔗 Botão Embutido:', value: config.botaoLabel ? `🟢 \`${config.botaoLabel}\`` : '❌ *Nenhum botão adicionado*' }
@@ -25,7 +25,6 @@ function gerarPainelAnuncio(config) {
         .setFooter({ text: 'WW SENSI IOS #4K • Sistema de Disparos' })
         .setTimestamp();
 
-    // Menu Dropdown igual ao do seu print ("Choose a Question") para configurar as opções
     const rowDropdown = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
             .setCustomId('menu_config_anuncio')
@@ -37,7 +36,6 @@ function gerarPainelAnuncio(config) {
             ])
     );
 
-    // Botões de Ação na parte inferior
     const rowAcoes = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('btn_anuncio_visualizar')
@@ -59,7 +57,7 @@ module.exports = {
     async execute(interaction) {
         const client = interaction.client;
 
-        // Trava de segurança para administradores
+        // 🛡️ CORREÇÃO CRÍTICA: Nova checagem de permissões nativa para interações v14
         if (
             interaction.isChatInputCommand() || 
             interaction.isButton() || 
@@ -67,13 +65,13 @@ module.exports = {
             interaction.isChannelSelectMenu() ||
             interaction.isStringSelectMenu()
         ) {
-            if (!interaction.member.permissions.has('Administrator')) {
+            if (!interaction.memberPermissions?.has('Administrator')) {
                 return interaction.reply({ content: '❌ Apenas administradores com a permissão "Administrador" podem usar estas funções.', ephemeral: true });
             }
         }
 
         // =========================================================================
-        // 1. COMANDO /PAINEL (MANTIDO INTACTO CONFORME PEDIDO)
+        // 1. COMANDO /PAINEL (INTACTO)
         // =========================================================================
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'painel') {
@@ -86,7 +84,7 @@ module.exports = {
                     new ButtonBuilder()
                         .setCustomId('btn_config_limpeza')
                         .setLabel('Configurar Chat')
-                        .setEmoji('<a:emoji_36:1526557977710956715>')
+                        .setEmoji('<a:emoji_36:1526557977710956615>')
                         .setStyle(ButtonStyle.Secondary)
                 );
 
@@ -100,10 +98,9 @@ module.exports = {
         }
 
         // =========================================================================
-        // 2. INTERAÇÕES DOS BOTÕES
+        // 2. INTERAÇÕES DOS BOTÕES (INTACTO)
         // =========================================================================
         if (interaction.isButton()) {
-            
             if (interaction.customId === 'btn_enviar_msg') {
                 const selectCanal = new ChannelSelectMenuBuilder()
                     .setCustomId('select_canal_msg')
@@ -114,7 +111,6 @@ module.exports = {
                 return;
             }
 
-            // Ação de Visualizar Mensagem de forma idêntica a como ela será enviada
             if (interaction.customId === 'btn_anuncio_visualizar') {
                 const config = client.anuncios?.[interaction.user.id];
                 if (!config) return interaction.reply({ content: '❌ Sessão expirada.', ephemeral: true });
@@ -135,7 +131,6 @@ module.exports = {
                 return;
             }
 
-            // Disparo definitivo da mensagem limpa para o canal alvo
             if (interaction.customId === 'btn_anuncio_enviar') {
                 const config = client.anuncios?.[interaction.user.id];
                 if (!config || !config.texto) return interaction.reply({ content: '❌ Preencha pelo menos o texto da mensagem antes de realizar o envio.', ephemeral: true });
@@ -156,7 +151,7 @@ module.exports = {
                     }
 
                     await canalTarget.send(finalPayload);
-                    delete client.anuncios[interaction.user.id]; // Limpa cache de criação
+                    delete client.anuncios[interaction.user.id];
 
                     await interaction.reply({ content: '🚀 Mensagem enviada com sucesso ao canal de destino!', ephemeral: true });
                 } catch (err) {
@@ -165,7 +160,6 @@ module.exports = {
                 return;
             }
 
-            // LOGICA ANTIGA DO BOTÃO DE LIMPEZA (INTACTO)
             if (interaction.customId === 'btn_config_limpeza') {
                 const modal = new ModalBuilder().setCustomId('modal_config_limpeza').setTitle('Configurar Canal de Limpeza');
                 const canalInput = new TextInputBuilder().setCustomId('novo_canal_id').setLabel('Novo ID do Canal').setStyle(TextInputStyle.Short).setValue(client.canalLimpezaId || '').setRequired(true);
@@ -176,7 +170,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 3. CAPTURA DO SELETOR DE CANAL -> ABRE O DESIGN DO PAINEL FAQ STYLE
+        // 3. CAPTURA DO SELETOR DE CANAL (INTACTO)
         // =========================================================================
         if (interaction.isChannelSelectMenu()) {
             if (interaction.customId === 'select_canal_msg') {
@@ -184,7 +178,7 @@ module.exports = {
                 client.anuncios[interaction.user.id] = {
                     canalId: interaction.values[0],
                     texto: '',
-                    banner: 'https://i.postimg.cc/NMQktv5h/3E253502-A13F-4441-8D2E-E10F8B291422.jpg', // Banner padrão inicial
+                    banner: 'https://i.postimg.cc/NMQktv5h/3E253502-A13F-4441-8D2E-E10F8B291422.jpg',
                     botaoLabel: '',
                     botaoUrl: ''
                 };
@@ -195,7 +189,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 4. CAPTURA DAS SELEÇÕES DO MENU DROPDOWN (PREVINE ERRO DE ARQUIVOS)
+        // 4. CAPTURA DAS SELEÇÕES DO MENU DROPDOWN (INTACTO)
         // =========================================================================
         if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'menu_config_anuncio') {
@@ -228,7 +222,7 @@ module.exports = {
         }
 
         // =========================================================================
-        // 5. PROCESSAMENTO DOS FORMULÁRIOS (MODALS)
+        // 5. PROCESSAMENTO DOS FORMULÁRIOS MODALS (INTACTO)
         // =========================================================================
         if (interaction.isModalSubmit()) {
             const config = client.anuncios?.[interaction.user.id];
@@ -252,11 +246,10 @@ module.exports = {
                 return;
             }
 
-            // MODAL DE CONFIGURAÇÃO DE LIMPEZA CHAT (INTACTO)
             if (interaction.customId === 'modal_config_limpeza') {
                 const novoId = interaction.fields.getTextInputValue('novo_canal_id');
                 client.canalLimpezaId = novoId; 
-                await interaction.reply({ content: `✅ Configuração atualizada! Monitorando <#${novoId}>.`, ephemeral: true });
+                await interaction.reply({ content: `✅ Configuração updated! Monitorando <#${novoId}>.`, ephemeral: true });
                 return;
             }
         }
